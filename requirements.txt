@@ -1,0 +1,6 @@
+streamlit
+sympy
+matplotlib
+plotly
+requests
+Pillow
