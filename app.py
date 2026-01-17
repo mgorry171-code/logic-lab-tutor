@@ -23,7 +23,6 @@ if 'keypad_target' not in st.session_state:
     st.session_state.keypad_target = "Current Line"
 if 'step_verified' not in st.session_state:
     st.session_state.step_verified = False
-# NEW: Track the last processed image to prevent loops
 if 'last_image_bytes' not in st.session_state:
     st.session_state.last_image_bytes = None
 
@@ -251,7 +250,6 @@ def validate_step(line_prev_str, line_curr_str):
     except Exception as e:
         return False, f"Syntax Error: {e}", "", debug_info
 
-# --- NEW: MATHPIX INTEGRATION ---
 def process_image_with_mathpix(image_file, app_id, app_key):
     try:
         image_bytes = image_file.getvalue()
@@ -283,7 +281,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v6.1", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v6.2", page_icon="🧪")
 st.title("🧪 The Logic Lab")
 
 with st.sidebar:
@@ -306,29 +304,31 @@ with st.sidebar:
     st.markdown("---")
     show_debug = st.checkbox("🛠️ Engineer Mode", value=False)
 
-# --- CAMERA INPUT (FIXED NO-LOOP) ---
-with st.expander("📷 Scan Handwritten Math", expanded=True):
-    cam_col1, cam_col2 = st.columns([1, 3])
-    with cam_col1:
-        img_file = st.camera_input("Take a photo")
-    with cam_col2:
-        if img_file is not None:
-            # CHECK: Only process if it's a NEW photo
-            current_bytes = img_file.getvalue()
-            if current_bytes != st.session_state.last_image_bytes:
-                st.session_state.last_image_bytes = current_bytes # Remember this photo
-                
-                st.write("Processing...")
-                if mp_id and mp_key:
-                    extracted_text = process_image_with_mathpix(img_file, mp_id, mp_key)
-                    if extracted_text:
-                        st.session_state.line_prev = extracted_text
-                        st.success(f"Scanned: {extracted_text}")
-                        # No st.rerun() needed - Streamlit updates automatically
-                else:
-                    st.warning("⚠️ No API Keys found. Running Simulation.")
-                    st.session_state.line_prev = "3x^2 + 5x - 2 = 0"
-                    st.success("Simulated Scan: 3x^2 + 5x - 2 = 0")
+# --- CAMERA INPUT (NOW WITH ON/OFF SWITCH) ---
+with st.expander("📷 Scan Handwritten Math", expanded=False):
+    # THE FIX: A checkbox to completely enable/disable the camera hardware
+    enable_cam = st.checkbox("Enable Camera Stream (Uncheck to save battery)")
+    
+    if enable_cam:
+        cam_col1, cam_col2 = st.columns([1, 3])
+        with cam_col1:
+            img_file = st.camera_input("Take a photo")
+        with cam_col2:
+            if img_file is not None:
+                current_bytes = img_file.getvalue()
+                if current_bytes != st.session_state.last_image_bytes:
+                    st.session_state.last_image_bytes = current_bytes 
+                    
+                    st.write("Processing...")
+                    if mp_id and mp_key:
+                        extracted_text = process_image_with_mathpix(img_file, mp_id, mp_key)
+                        if extracted_text:
+                            st.session_state.line_prev = extracted_text
+                            st.success(f"Scanned: {extracted_text}")
+                    else:
+                        st.warning("⚠️ No API Keys found. Running Simulation.")
+                        st.session_state.line_prev = "3x^2 + 5x - 2 = 0"
+                        st.success("Simulated Scan: 3x^2 + 5x - 2 = 0")
 
 st.markdown("---")
 
