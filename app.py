@@ -281,7 +281,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v6.2", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v6.3", page_icon="🧪")
 st.title("🧪 The Logic Lab")
 
 with st.sidebar:
@@ -295,18 +295,28 @@ with st.sidebar:
             st.session_state.history = []
             st.rerun()
     st.markdown("---")
-    st.subheader("📷 Camera Settings")
-    st.caption("Enter Keys to enable real scanning. Empty keys = Demo Mode.")
-    mp_id = st.text_input("Mathpix App ID", type="password")
-    mp_key = st.text_input("Mathpix App Key", type="password")
+    
+    # --- AUTO-DETECT KEYS FROM SECRETS (THE VAULT) ---
+    mp_id = None
+    mp_key = None
+    
+    if "mathpix_app_id" in st.secrets and "mathpix_app_key" in st.secrets:
+        mp_id = st.secrets["mathpix_app_id"]
+        mp_key = st.secrets["mathpix_app_key"]
+        st.success("✅ Camera Active (Licensed)")
+    else:
+        st.subheader("📷 Camera Settings")
+        st.caption("Enter Keys to enable real scanning. Empty keys = Demo Mode.")
+        mp_id = st.text_input("Mathpix App ID", type="password")
+        mp_key = st.text_input("Mathpix App Key", type="password")
+
     st.markdown("---")
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode", value=False)
     st.markdown("---")
     show_debug = st.checkbox("🛠️ Engineer Mode", value=False)
 
-# --- CAMERA INPUT (NOW WITH ON/OFF SWITCH) ---
+# --- CAMERA INPUT ---
 with st.expander("📷 Scan Handwritten Math", expanded=False):
-    # THE FIX: A checkbox to completely enable/disable the camera hardware
     enable_cam = st.checkbox("Enable Camera Stream (Uncheck to save battery)")
     
     if enable_cam:
