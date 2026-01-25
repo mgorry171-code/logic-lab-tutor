@@ -54,7 +54,7 @@ def clean_input(text):
     text = text.replace("=<", "<=").replace("=>", ">=")
     return text
 
-# --- CUSTOM STATS FUNCTIONS ---
+# --- CUSTOM STATS FUNCTIONS (ROBUST) ---
 def sanitize_args(args):
     """Flattens mixed args and converts to floats."""
     data = []
@@ -66,7 +66,8 @@ def sanitize_args(args):
     return [float(x) for x in data]
 
 def to_sympy_number(val):
-    """Converts 3.0 -> Integer(3) to match user input."""
+    """Aggressively cleans numbers: 3.0 -> 3."""
+    val = round(val, 8) # Remove tiny floating point errors
     if val == int(val):
         return sympy.Integer(int(val))
     return sympy.Float(val)
@@ -228,7 +229,6 @@ def get_solution_set(text_str):
                      sol = solve(expr, x, set=True)
                      return flatten_set(sol[1])
             else:
-                # SAFE INEQUALITY HANDLING (Replaced reduce_inequalities)
                 try:
                     sol = solve(expr, x, set=True)
                     return flatten_set(sol[1])
@@ -250,88 +250,16 @@ def check_numerical_equivalence(set_a, set_b):
     except:
         return False
 
-def diagnose_error(set_correct, set_user):
-    return "Check your math logic.", ""
-
-def next_step():
-    st.session_state.line_prev = st.session_state.line_curr
-    st.session_state.line_curr = ""
-    st.session_state.step_verified = False
-
-def plot_system_interactive(text_str):
-    try:
-        x, y = symbols('x y')
-        clean = clean_input(text_str)
-        equations = []
-        if ";" in clean:
-            raw_eqs = clean.split(";")
-            for r in raw_eqs:
-                if r.strip(): equations.append(parse_for_logic(r))
-        else:
-            if clean.count("=") > 1 and "," in clean:
-                 raw_eqs = clean.split(",")
-                 for r in raw_eqs:
-                    if r.strip(): equations.append(parse_for_logic(r))
-            else:
-                 equations.append(parse_for_logic(clean))
-        
-        fig = go.Figure()
-        x_vals = np.linspace(-10, 10, 100)
-        colors = ['blue', 'orange', 'green']
-        i = 0
-        table_data_list = [] 
-        has_plotted = False
-        
-        for eq in equations:
-            try:
-                if eq.has(I): continue
-                if 'y' in str(eq):
-                    y_expr = solve(eq, y)
-                    if y_expr:
-                        f_y = sympy.lambdify(x, y_expr[0], "numpy") 
-                        y_vals = f_y(x_vals)
-                        if np.iscomplexobj(y_vals): y_vals = y_vals.real 
-                        fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name=f"Eq {i+1}", line=dict(color=colors[i % 3])))
-                        t_x = []
-                        t_y = []
-                        for val in [-4, -2, 0, 2, 4]:
-                            try:
-                                res_y = y_expr[0].subs(x, val)
-                                if res_y.is_real: 
-                                    t_x.append(val)
-                                    t_y.append(round(float(res_y), 2))
-                            except: pass
-                        if t_x:
-                            df_table = pd.DataFrame({"x": t_x, "y": t_y})
-                            table_data_list.append({"label": f"Equation {i+1}: ${latex(eq)}$", "df": df_table})
-                        has_plotted = True
-                        i += 1
-                elif 'x' in str(eq):
-                    x_sol = solve(eq, x)
-                    if x_sol:
-                        val = float(x_sol[0])
-                        fig.add_vline(x=val, line_dash="dash", line_color=colors[i%3], annotation_text=f"x={val}")
-                        t_x = [val]*5
-                        t_y = [-4, -2, 0, 2, 4]
-                        df_table = pd.DataFrame({"x": t_x, "y": t_y})
-                        table_data_list.append({"label": f"Equation {i+1}: ${latex(eq)}$", "df": df_table})
-                        has_plotted = True
-                        i += 1
-            except: pass
-        if not has_plotted: return None, None
-        fig.update_layout(xaxis_title="X Axis", yaxis_title="Y Axis", xaxis=dict(range=[-10, 10], showgrid=True, zeroline=True, zerolinewidth=2, zerolinecolor='black'), yaxis=dict(range=[-10, 10], showgrid=True, zeroline=True, zerolinewidth=2, zerolinecolor='black'), height=500, showlegend=True, margin=dict(l=20, r=20, t=30, b=20))
-        return fig, table_data_list
-    except Exception as e:
-        return None, None
-
 def validate_step(line_prev_str, line_curr_str):
     debug_info = {}
     try:
         if not line_prev_str or not line_curr_str: return False, "Empty", "", {}
         set_A = get_solution_set(line_prev_str)
         set_B = get_solution_set(line_curr_str)
-        debug_info['Raw Set A'] = str(set_A)
-        debug_info['Raw Set B'] = str(set_B)
+        
+        # DEBUG INFO CAPTURE
+        debug_info['Set A'] = str(set_A)
+        debug_info['Set B'] = str(set_B)
         
         if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
         if set_B is None: return False, "Could not parse Line B", "", debug_info
@@ -347,11 +275,10 @@ def validate_step(line_prev_str, line_curr_str):
         if check_numerical_equivalence(set_A, set_B):
              return True, "Valid", "", debug_info
 
-        hint, internal_debug = diagnose_error(set_A, set_B)
-        return False, "Invalid", hint, debug_info
+        return False, "Invalid", "Values do not match.", debug_info
 
     except Exception as e:
-        return False, f"Syntax Error: {e}", "", debug_info
+        return False, f"Error: {e}", "", debug_info
 
 def process_image_with_mathpix(image_file, app_id, app_key):
     try:
@@ -374,7 +301,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v8.8", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v8.9", page_icon="🧪")
 
 st.markdown("""
 <style>
@@ -552,6 +479,11 @@ with c_check:
         else:
             st.session_state.step_verified = False
             st.error("❌ Logic Break")
+            # --- X-RAY DEBUGGER (TEMPORARY) ---
+            st.markdown("#### 🛠️ X-Ray Debugger:")
+            st.code(f"I calculated Set A as: {debug_data.get('Set A')}")
+            st.code(f"I calculated Set B as: {debug_data.get('Set B')}")
+            # ----------------------------------
             if hint: st.info(f"💡 Hint: {hint}")
 
 with c_next:
