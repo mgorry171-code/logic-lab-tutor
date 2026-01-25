@@ -431,4 +431,48 @@ with st.expander("⌨️ Show Math Keypad", expanded=False):
     c2.button("π", on_click=add_to_input, args=("pi",))
     c3.button("e", on_click=add_to_input, args=("e",))
     c4.button("log", on_click=add_to_input, args=("log(",))
-    c5.button("sin", on_click=add)
+    c5.button("sin", on_click=add_to_input, args=("sin(",))
+    c6.button("cos", on_click=add_to_input, args=("cos(",))
+
+st.markdown("---")
+
+c_check, c_next = st.columns([1, 1])
+with c_check:
+    if st.button("Check Logic", type="primary"):
+        line_a = st.session_state.line_prev
+        line_b = st.session_state.line_curr
+        is_valid, status, hint, debug_data = validate_step(line_a, line_b)
+        now = datetime.datetime.now().strftime("%H:%M:%S")
+        st.session_state.history.append({
+            "Time": now, "Input A": line_a, "Input B": line_b, "Result": status, "Hint": hint
+        })
+        if is_valid:
+            st.session_state.step_verified = True 
+            if status == "Valid":
+                st.success("✅ **Perfect Logic!**")
+                st.balloons()
+            elif status == "Unsimplified":
+                st.warning("⚠️ **Correct, but not fully simplified.**")
+                st.info("💡 **Hint:** Perform the arithmetic.")
+            elif status == "Partial":
+                st.warning("⚠️ **Technically Correct, but Incomplete.**")
+        else:
+            st.session_state.step_verified = False
+            st.error("❌ **Logic Break**")
+            if hint and hint != "Logic error.":
+                st.info(f"💡 **Hint:** {hint}")
+        if not is_valid and show_debug:
+            st.markdown("---")
+            st.write("🛠️ **Debug X-Ray:**")
+            st.write(f"**Raw Set A:** `{debug_data.get('Raw Set A')}`")
+            st.write(f"**Raw Set B:** `{debug_data.get('Raw Set B')}`")
+
+with c_next:
+    if st.session_state.step_verified:
+        st.button("⬇️ Next Step (Move Down)", on_click=next_step)
+
+st.markdown("---")
+st.markdown(
+    """<div style='text-align: center; color: #666;'><small>Built by The Logic Lab 🧪 | © 2026 Step-Checker</small></div>""",
+    unsafe_allow_html=True
+)
