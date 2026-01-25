@@ -54,9 +54,9 @@ def clean_input(text):
     text = text.replace("=<", "<=").replace("=>", ">=")
     return text
 
-# --- CUSTOM STATS FUNCTIONS (ROBUST VERSION) ---
+# --- CUSTOM STATS FUNCTIONS (INTEGER POLISH) ---
 def sanitize_args(args):
-    """Flattens mixed args (1, 2, 3) vs ([1, 2, 3]) and converts to float."""
+    """Flattens mixed args and converts to floats."""
     data = []
     for a in args:
         if isinstance(a, (list, tuple, sympy.FiniteSet)):
@@ -65,12 +65,18 @@ def sanitize_args(args):
             data.append(a)
     return [float(x) for x in data]
 
+def to_sympy_number(val):
+    """Converts 3.0 -> Integer(3) to match user input."""
+    if val == int(val):
+        return sympy.Integer(int(val))
+    return sympy.Float(val)
+
 def my_mean(*args):
     try:
         data = sanitize_args(args)
         if not data: return sympy.nan
         val = statistics.mean(data)
-        return sympy.Float(val)
+        return to_sympy_number(val)
     except:
         return sympy.nan
 
@@ -79,7 +85,7 @@ def my_median(*args):
         data = sanitize_args(args)
         if not data: return sympy.nan
         val = statistics.median(data)
-        return sympy.Float(val)
+        return to_sympy_number(val)
     except:
         return sympy.nan
 
@@ -88,7 +94,7 @@ def my_stdev(*args):
         data = sanitize_args(args)
         if len(data) < 2: return sympy.nan
         val = statistics.stdev(data)
-        return sympy.Float(val)
+        return to_sympy_number(val)
     except:
         return sympy.nan
 
@@ -314,35 +320,6 @@ def plot_system_interactive(text_str):
     except Exception as e:
         return None, None
 
-def validate_step(line_prev_str, line_curr_str):
-    debug_info = {}
-    try:
-        if not line_prev_str or not line_curr_str: return False, "Empty", "", {}
-        set_A = get_solution_set(line_prev_str)
-        set_B = get_solution_set(line_curr_str)
-        debug_info['Raw Set A'] = str(set_A)
-        debug_info['Raw Set B'] = str(set_B)
-        
-        if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
-        if set_B is None: return False, "Could not parse Line B", "", debug_info
-
-        if set_A == set_B: return True, "Valid", "", debug_info
-        try:
-            list_A = sorted([str(s) for s in set_A])
-            list_B = sorted([str(s) for s in set_B])
-            if list_A == list_B:
-                 return True, "Valid", "", debug_info
-        except: pass
-        
-        if check_numerical_equivalence(set_A, set_B):
-             return True, "Valid", "", debug_info
-
-        hint, internal_debug = diagnose_error(set_A, set_B)
-        return False, "Invalid", hint, debug_info
-
-    except Exception as e:
-        return False, f"Syntax Error: {e}", "", debug_info
-
 def process_image_with_mathpix(image_file, app_id, app_key):
     try:
         image_bytes = image_file.getvalue()
@@ -364,7 +341,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v8.6", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v8.7", page_icon="🧪")
 
 st.markdown("""
 <style>
