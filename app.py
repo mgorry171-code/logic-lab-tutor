@@ -1,3 +1,17 @@
+This is a common "growing pain" when adding more buttons!
+
+The Error: StreamlitDuplicateElementId The Cause: You now have two buttons labeled "," (one in the Calculus tab and one in the Statistics tab). Streamlit gets confused because it doesn't know which one is which.
+
+The Fix: We just need to give each button a unique "nickname" (a key) so Streamlit can tell them apart.
+
+Action: Update app.py to v8.1 (Fix)
+Edit app.py in GitHub.
+
+Delete All and paste this corrected code.
+
+Commit and Refresh.
+
+Python
 import streamlit as st
 import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial
@@ -320,7 +334,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v8.0", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v8.1", page_icon="🧪")
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -429,7 +443,7 @@ with col2:
 
 st.markdown("---")
 
-# --- EXPANDED KEYPAD (THE BIG UPDATE) ---
+# --- EXPANDED KEYPAD (FIXED ID ERROR) ---
 with st.expander("⌨️ Show Keypad", expanded=False):
     st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
     
@@ -458,7 +472,7 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b2.button("∫", on_click=add_to_input, args=("integrate(",))
         b3.button("lim", on_click=add_to_input, args=("limit(",))
         b4.button("∞", on_click=add_to_input, args=("oo",))
-        b5.button(",", on_click=add_to_input, args=(", ",))
+        b5.button(",", on_click=add_to_input, args=(", ",), key="calc_comma") # Added Key
         b6.button("dx", on_click=add_to_input, args=(", x",))
 
     with tab3: # Stats
@@ -466,7 +480,7 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b1.button("Mean", on_click=add_to_input, args=("mean(",))
         b2.button("Median", on_click=add_to_input, args=("median(",))
         b3.button("StDev", on_click=add_to_input, args=("stdev(",))
-        b4.button(",", on_click=add_to_input, args=(", ",))
+        b4.button(",", on_click=add_to_input, args=(", ",), key="stats_comma") # Added Key
         b5.button("Mode", disabled=True, label="Mode (soon)")
         b6.button("Norm", disabled=True, label="Norm (soon)")
 
