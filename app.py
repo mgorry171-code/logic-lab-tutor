@@ -431,4 +431,4 @@ with st.expander("⌨️ Show Math Keypad", expanded=False):
     c2.button("π", on_click=add_to_input, args=("pi",))
     c3.button("e", on_click=add_to_input, args=("e",))
     c4.button("log", on_click=add_to_input, args=("log(",))
-    c5.button("sin", on_click=add
+    c5.button("sin", on_click=add)
