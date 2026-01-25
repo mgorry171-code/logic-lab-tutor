@@ -1,6 +1,6 @@
 import streamlit as st
 import sympy
-from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral, reduce_inequalities
+from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 import datetime
 import pandas as pd
@@ -54,7 +54,7 @@ def clean_input(text):
     text = text.replace("=<", "<=").replace("=>", ">=")
     return text
 
-# --- CUSTOM STATS FUNCTIONS (INTEGER POLISH) ---
+# --- CUSTOM STATS FUNCTIONS ---
 def sanitize_args(args):
     """Flattens mixed args and converts to floats."""
     data = []
@@ -214,7 +214,7 @@ def get_solution_set(text_str):
         else:
             expr = equations[0]
             
-            # CRITICAL FIX FOR STATS/NUMBERS
+            # NUMBER FIX
             if expr.is_Number:
                 return flatten_set(sympy.FiniteSet(expr))
 
@@ -228,8 +228,12 @@ def get_solution_set(text_str):
                      sol = solve(expr, x, set=True)
                      return flatten_set(sol[1])
             else:
-                solution = reduce_inequalities(expr, x)
-                return flatten_set(solution.as_set())
+                # SAFE INEQUALITY HANDLING (Replaced reduce_inequalities)
+                try:
+                    sol = solve(expr, x, set=True)
+                    return flatten_set(sol[1])
+                except:
+                    return flatten_set(sympy.FiniteSet(expr))
     except Exception as e:
         return None
 
@@ -320,6 +324,35 @@ def plot_system_interactive(text_str):
     except Exception as e:
         return None, None
 
+def validate_step(line_prev_str, line_curr_str):
+    debug_info = {}
+    try:
+        if not line_prev_str or not line_curr_str: return False, "Empty", "", {}
+        set_A = get_solution_set(line_prev_str)
+        set_B = get_solution_set(line_curr_str)
+        debug_info['Raw Set A'] = str(set_A)
+        debug_info['Raw Set B'] = str(set_B)
+        
+        if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
+        if set_B is None: return False, "Could not parse Line B", "", debug_info
+
+        if set_A == set_B: return True, "Valid", "", debug_info
+        try:
+            list_A = sorted([str(s) for s in set_A])
+            list_B = sorted([str(s) for s in set_B])
+            if list_A == list_B:
+                 return True, "Valid", "", debug_info
+        except: pass
+        
+        if check_numerical_equivalence(set_A, set_B):
+             return True, "Valid", "", debug_info
+
+        hint, internal_debug = diagnose_error(set_A, set_B)
+        return False, "Invalid", hint, debug_info
+
+    except Exception as e:
+        return False, f"Syntax Error: {e}", "", debug_info
+
 def process_image_with_mathpix(image_file, app_id, app_key):
     try:
         image_bytes = image_file.getvalue()
@@ -341,7 +374,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v8.7", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v8.8", page_icon="🧪")
 
 st.markdown("""
 <style>
