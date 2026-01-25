@@ -1,25 +1,3 @@
-This is the classic "Fraction vs. Decimal" conflict.
-
-The Problem:
-
-Input A: 13/2 is stored as an exact Fraction.
-
-Input B: 6.5 is stored as a Floating Point Decimal.
-
-The Conflict: To a computer, "Exact Fraction" and "Approximate Decimal" are two different data types, so it says False.
-
-Previous Fallback: My "String Match" fix also failed because "13/2" does not look like "6.5".
-
-The Fix (v6.5): I am adding a "Numerical Translator" to the validation step. If the strict check fails, the app will now calculate the actual numerical value of both sides (e.g., convert both to 6.5) and compare those.
-
-Action:
-Edit app.py in GitHub.
-
-Delete All and paste this code.
-
-Commit and Refresh.
-
-Python
 import streamlit as st
 import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E
