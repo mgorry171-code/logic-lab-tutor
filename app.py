@@ -25,9 +25,14 @@ if 'step_verified' not in st.session_state:
 if 'last_image_bytes' not in st.session_state:
     st.session_state.last_image_bytes = None
 
-# --- HELPER FUNCTIONS ---
+# --- HELPER FUNCTIONS (Moved to Top for Safety) ---
 def clear_all():
     st.session_state.line_prev = ""
+    st.session_state.line_curr = ""
+    st.session_state.step_verified = False
+
+def next_step():
+    st.session_state.line_prev = st.session_state.line_curr
     st.session_state.line_curr = ""
     st.session_state.step_verified = False
 
@@ -193,14 +198,13 @@ def get_solution_set(text_str):
             val = parse_for_logic(parts[1].strip())
             return flatten_set(sympy.FiniteSet(val, -val))
         
-        # --- FIXED: Only split by comma if NOT inside parentheses ---
+        # Only split by comma if NOT inside parentheses
         elif "," in clean and "=" not in clean and "(" not in clean:
             items = clean.split(",")
             vals = []
             for i in items:
                 if i.strip(): vals.append(parse_for_logic(i.strip()))
             return flatten_set(sympy.FiniteSet(*vals))
-        # ------------------------------------------------------------
 
         equations = []
         if ";" in clean:
@@ -305,7 +309,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v9.0", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v9.1", page_icon="🧪")
 
 st.markdown("""
 <style>
