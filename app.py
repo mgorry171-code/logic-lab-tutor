@@ -1,6 +1,6 @@
 import streamlit as st
 import sympy
-from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial
+from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 import datetime
 import pandas as pd
@@ -39,12 +39,10 @@ def add_to_input(text_to_add):
 
 def clean_input(text):
     text = text.lower()
-    # Strip LaTeX wrappers
     text = text.replace(r"\(", "").replace(r"\)", "")
     text = text.replace(r"\[", "").replace(r"\]", "")
     text = text.replace("\\", "")
     text = text.replace("`", "")
-    
     text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
     text = text.replace(" and ", ",") 
     text = text.replace("^", "**")
@@ -56,9 +54,8 @@ def clean_input(text):
     text = text.replace("=<", "<=").replace("=>", ">=")
     return text
 
-# --- CUSTOM STATS FUNCTIONS FOR PARSER ---
+# --- CUSTOM STATS FUNCTIONS (LOGIC BRAIN) ---
 def my_mean(*args):
-    # Handle both mean(1,2,3) and mean([1,2,3])
     if len(args) == 1 and isinstance(args[0], (list, tuple)):
         return sympy.sympify(statistics.mean(args[0]))
     return sympy.sympify(statistics.mean(args))
@@ -73,46 +70,70 @@ def my_stdev(*args):
         return sympy.sympify(statistics.stdev(args[0]))
     return sympy.sympify(statistics.stdev(args))
 
-def smart_parse(text, evaluate=True):
+# --- PARSING ENGINES ---
+
+def parse_for_display(text):
+    """
+    THE LAZY BRAIN: Formats math but REFUSES to calculate it.
+    """
     transformations = (standard_transformations + (implicit_multiplication_application,))
     try:
-        # EXPANDED DICTIONARY FOR CALCULUS & STATS
-        local_dict = {
-            'e': E, 
-            'pi': pi, 
-            'diff': diff, 
-            'integrate': integrate, 
-            'limit': limit, 
-            'oo': oo,
+        # Map keywords to SYMBOLS/CLASSES, not functions
+        display_dict = {
+            'e': E, 'pi': pi, 'oo': oo,
+            'diff': Derivative,      # Show d/dx, don't do it
+            'integrate': Integral,   # Show Integral sign, don't do it
+            'limit': limit,
             'matrix': Matrix,
             'factorial': factorial,
-            'mean': my_mean,
-            'median': my_median,
-            'stdev': my_stdev
+            'mean': Function('Mean'),       # Just a word label
+            'median': Function('Median'),   # Just a word label
+            'stdev': Function('StDev')      # Just a word label
+        }
+        
+        # Clean text slightly differently for display to preserve structure
+        clean_text = clean_input(text)
+        
+        if "=" in clean_text:
+            parts = clean_text.split("=")
+            lhs = parse_expr(parts[0], transformations=transformations, evaluate=False, local_dict=display_dict)
+            rhs = parse_expr(parts[1], transformations=transformations, evaluate=False, local_dict=display_dict)
+            return Eq(lhs, rhs)
+        else:
+            return parse_expr(clean_text, transformations=transformations, evaluate=False, local_dict=display_dict)
+    except:
+        return text
+
+def parse_for_logic(text):
+    """
+    THE ACTIVE BRAIN: Actually calculates the result.
+    """
+    transformations = (standard_transformations + (implicit_multiplication_application,))
+    try:
+        logic_dict = {
+            'e': E, 'pi': pi, 'diff': diff, 'integrate': integrate, 'limit': limit, 'oo': oo,
+            'matrix': Matrix, 'factorial': factorial,
+            'mean': my_mean, 'median': my_median, 'stdev': my_stdev
         }
         
         if "<=" in text or ">=" in text or "<" in text or ">" in text:
-            return parse_expr(text, transformations=transformations, evaluate=evaluate, local_dict=local_dict)
+            return parse_expr(text, transformations=transformations, evaluate=True, local_dict=logic_dict)
         elif "=" in text:
             parts = text.split("=")
-            lhs = parse_expr(parts[0], transformations=transformations, evaluate=evaluate, local_dict=local_dict)
-            rhs = parse_expr(parts[1], transformations=transformations, evaluate=evaluate, local_dict=local_dict)
+            lhs = parse_expr(parts[0], transformations=transformations, evaluate=True, local_dict=logic_dict)
+            rhs = parse_expr(parts[1], transformations=transformations, evaluate=True, local_dict=logic_dict)
             return Eq(lhs, rhs)
         else:
-            return parse_expr(text, transformations=transformations, evaluate=evaluate, local_dict=local_dict)
+            return parse_expr(text, transformations=transformations, evaluate=True, local_dict=logic_dict)
     except:
-        return sympy.sympify(text, evaluate=evaluate)
+        return sympy.sympify(text, evaluate=True)
 
 def pretty_print(math_str):
     try:
         if not math_str: return ""
-        clean_str = clean_input(math_str)
-        clean_str = clean_str.replace("±", "±")
-        if ";" in clean_str:
-             parts = clean_str.split(";")
-             latex_parts = [latex(smart_parse(p, evaluate=False)) for p in parts if p.strip()]
-             return ", \\quad ".join(latex_parts)
-        expr = smart_parse(clean_str, evaluate=False)
+        # Use the LAZY brain for display
+        expr = parse_for_display(math_str)
+        if isinstance(expr, str): return expr
         return latex(expr)
     except:
         return math_str
@@ -120,46 +141,44 @@ def pretty_print(math_str):
 def convert_df_to_csv(df):
     return df.to_csv(index=False).encode('utf-8')
 
-# --- LOGIC BRAIN ---
+# --- LOGIC CORE ---
 def flatten_set(s):
     if s is None: return set()
     flat_items = []
     for item in s:
         if isinstance(item, (tuple, sympy.Tuple)):
-            if len(item) == 1:
-                flat_items.append(item[0])
-            else:
-                flat_items.append(item) 
-        else:
-            flat_items.append(item)
+            if len(item) == 1: flat_items.append(item[0])
+            else: flat_items.append(item) 
+        else: flat_items.append(item)
     return sympy.FiniteSet(*flat_items)
 
 def get_solution_set(text_str):
     x, y = symbols('x y')
     clean = clean_input(text_str)
     try:
+        # Use the ACTIVE brain for solving
         if "±" in clean:
             parts = clean.split("±")
-            val = smart_parse(parts[1].strip(), evaluate=True)
+            val = parse_for_logic(parts[1].strip())
             return flatten_set(sympy.FiniteSet(val, -val))
         elif "," in clean and "=" not in clean:
             items = clean.split(",")
             vals = []
             for i in items:
-                if i.strip(): vals.append(smart_parse(i.strip(), evaluate=True))
+                if i.strip(): vals.append(parse_for_logic(i.strip()))
             return flatten_set(sympy.FiniteSet(*vals))
 
         equations = []
         if ";" in clean:
             raw_eqs = clean.split(";")
             for r in raw_eqs:
-                if r.strip(): equations.append(smart_parse(r, evaluate=True))
+                if r.strip(): equations.append(parse_for_logic(r))
         elif clean.count("=") > 1 and "," in clean:
             raw_eqs = clean.split(",")
             for r in raw_eqs:
-                if r.strip(): equations.append(smart_parse(r, evaluate=True))
+                if r.strip(): equations.append(parse_for_logic(r))
         else:
-             equations.append(smart_parse(clean, evaluate=True))
+             equations.append(parse_for_logic(clean))
 
         if len(equations) > 1:
             sol = solve(equations, (x, y), set=True)
@@ -167,10 +186,7 @@ def get_solution_set(text_str):
         else:
             expr = equations[0]
             if isinstance(expr, tuple): return flatten_set(sympy.FiniteSet(expr))
-            # Handle Matrix Logic
-            if isinstance(expr, Matrix):
-                 return flatten_set(sympy.FiniteSet(expr))
-            
+            if isinstance(expr, Matrix): return flatten_set(sympy.FiniteSet(expr))
             if isinstance(expr, Eq) or not (expr.is_Relational):
                  if 'y' in str(expr) and 'x' in str(expr): return flatten_set(sympy.FiniteSet(expr))
                  else:
@@ -208,18 +224,19 @@ def plot_system_interactive(text_str):
     try:
         x, y = symbols('x y')
         clean = clean_input(text_str)
+        # For graphing, we usually need the ACTIVE brain to resolve variables
         equations = []
         if ";" in clean:
             raw_eqs = clean.split(";")
             for r in raw_eqs:
-                if r.strip(): equations.append(smart_parse(r, evaluate=True))
+                if r.strip(): equations.append(parse_for_logic(r))
         else:
             if clean.count("=") > 1 and "," in clean:
                  raw_eqs = clean.split(",")
                  for r in raw_eqs:
-                    if r.strip(): equations.append(smart_parse(r, evaluate=True))
+                    if r.strip(): equations.append(parse_for_logic(r))
             else:
-                 equations.append(smart_parse(clean, evaluate=True))
+                 equations.append(parse_for_logic(clean))
         
         fig = go.Figure()
         x_vals = np.linspace(-10, 10, 100)
@@ -320,9 +337,8 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v8.2", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v8.3", page_icon="🧪")
 
-# --- CUSTOM CSS ---
 st.markdown("""
 <style>
     .big-font { font-size:20px !important; }
@@ -429,7 +445,7 @@ with col2:
 
 st.markdown("---")
 
-# --- EXPANDED KEYPAD (FIXED ARGS ERROR) ---
+# --- EXPANDED KEYPAD ---
 with st.expander("⌨️ Show Keypad", expanded=False):
     st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
     
@@ -467,8 +483,8 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b2.button("Median", on_click=add_to_input, args=("median(",))
         b3.button("StDev", on_click=add_to_input, args=("stdev(",))
         b4.button(",", on_click=add_to_input, args=(", ",), key="stats_comma") 
-        b5.button("Mode (soon)", disabled=True) # FIXED
-        b6.button("Norm (soon)", disabled=True) # FIXED
+        b5.button("Mode (soon)", disabled=True) 
+        b6.button("Norm (soon)", disabled=True) 
 
     with tab4: # Pre-Calc
         b1, b2, b3, b4, b5, b6 = st.columns(6)
@@ -476,8 +492,8 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b2.button("[ ]", on_click=add_to_input, args=("[",))
         b3.button("]", on_click=add_to_input, args=("])",))
         b4.button("n!", on_click=add_to_input, args=("factorial(",))
-        b5.button("Σ (soon)", disabled=True) # FIXED
-        b6.button("∏ (soon)", disabled=True) # FIXED
+        b5.button("Σ (soon)", disabled=True) 
+        b6.button("∏ (soon)", disabled=True) 
 
 st.markdown("---")
 
