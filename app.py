@@ -1,3 +1,21 @@
+You are hitting a specific quirk where the "Logic Brain" (the active solver) is getting confused by the data format before it sends it to the calculator.
+
+Basically, median(1,3,5) is arriving at the logic engine, but the engine is saying, "Wait, is this a list of numbers or three separate numbers?" and failing silently.
+
+The Fix (v8.5):
+
+Bulletproof Stats: I am forcing the stats functions (mean, median, stdev) to accept any format (list, tuple, or separate numbers) and convert them to plain Python numbers before calculating.
+
+Smarter Solver: I updated the logic to recognize when the answer is just a Number (like 3) so it doesn't try to "solve for x" and return an empty set.
+
+Action: Update app.py to v8.5
+Edit app.py in GitHub.
+
+Delete All and paste this code.
+
+Commit and Refresh.
+
+Python
 import streamlit as st
 import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral
@@ -54,44 +72,64 @@ def clean_input(text):
     text = text.replace("=<", "<=").replace("=>", ">=")
     return text
 
-# --- CUSTOM STATS FUNCTIONS (LOGIC BRAIN) ---
+# --- CUSTOM STATS FUNCTIONS (ROBUST VERSION) ---
+def sanitize_args(args):
+    """Flattens mixed args (1, 2, 3) vs ([1, 2, 3]) and converts to float."""
+    data = []
+    for a in args:
+        if isinstance(a, (list, tuple, sympy.FiniteSet)):
+            data.extend(a)
+        else:
+            data.append(a)
+    return [float(x) for x in data]
+
 def my_mean(*args):
-    if len(args) == 1 and isinstance(args[0], (list, tuple)):
-        return sympy.sympify(statistics.mean(args[0]))
-    return sympy.sympify(statistics.mean(args))
+    try:
+        data = sanitize_args(args)
+        if not data: return sympy.nan
+        val = statistics.mean(data)
+        return sympy.Float(val)
+    except:
+        return sympy.nan
 
 def my_median(*args):
-    if len(args) == 1 and isinstance(args[0], (list, tuple)):
-        return sympy.sympify(statistics.median(args[0]))
-    return sympy.sympify(statistics.median(args))
+    try:
+        data = sanitize_args(args)
+        if not data: return sympy.nan
+        val = statistics.median(data)
+        return sympy.Float(val)
+    except:
+        return sympy.nan
 
 def my_stdev(*args):
-    if len(args) == 1 and isinstance(args[0], (list, tuple)):
-        return sympy.sympify(statistics.stdev(args[0]))
-    return sympy.sympify(statistics.stdev(args))
+    try:
+        data = sanitize_args(args)
+        if len(data) < 2: return sympy.nan
+        val = statistics.stdev(data)
+        return sympy.Float(val)
+    except:
+        return sympy.nan
 
 # --- PARSING ENGINES ---
 
 def parse_for_display(text):
-    """
-    THE LAZY BRAIN: Formats math but REFUSES to calculate it.
-    """
+    """THE LAZY BRAIN: Formats math but REFUSES to calculate it."""
     transformations = (standard_transformations + (implicit_multiplication_application,))
     try:
-        # Map keywords to SYMBOLS/CLASSES, not functions
         display_dict = {
             'e': E, 'pi': pi, 'oo': oo,
-            'diff': Derivative,      # Show d/dx, don't do it
-            'integrate': Integral,   # Show Integral sign, don't do it
+            'diff': Derivative,      
+            'integrate': Integral,   
             'limit': limit,
             'matrix': Matrix,
             'factorial': factorial,
-            'mean': Function('Mean'),       # Just a word label
-            'median': Function('Median'),   # Just a word label
-            'stdev': Function('StDev')      # Just a word label
+            'mean': Function('Mean'),       
+            'avg': Function('Mean'),         
+            'median': Function('Median'),   
+            'med': Function('Median'),       
+            'stdev': Function('StDev')      
         }
         
-        # Clean text slightly differently for display to preserve structure
         clean_text = clean_input(text)
         
         if "=" in clean_text:
@@ -105,15 +143,17 @@ def parse_for_display(text):
         return text
 
 def parse_for_logic(text):
-    """
-    THE ACTIVE BRAIN: Actually calculates the result.
-    """
+    """THE ACTIVE BRAIN: Actually calculates the result."""
     transformations = (standard_transformations + (implicit_multiplication_application,))
     try:
         logic_dict = {
             'e': E, 'pi': pi, 'diff': diff, 'integrate': integrate, 'limit': limit, 'oo': oo,
             'matrix': Matrix, 'factorial': factorial,
-            'mean': my_mean, 'median': my_median, 'stdev': my_stdev
+            'mean': my_mean, 
+            'avg': my_mean,        
+            'median': my_median, 
+            'med': my_median,      
+            'stdev': my_stdev
         }
         
         if "<=" in text or ">=" in text or "<" in text or ">" in text:
@@ -131,7 +171,6 @@ def parse_for_logic(text):
 def pretty_print(math_str):
     try:
         if not math_str: return ""
-        # Use the LAZY brain for display
         expr = parse_for_display(math_str)
         if isinstance(expr, str): return expr
         return latex(expr)
@@ -156,7 +195,7 @@ def get_solution_set(text_str):
     x, y = symbols('x y')
     clean = clean_input(text_str)
     try:
-        # Use the ACTIVE brain for solving
+        # 1. Parse using the Active Brain
         if "±" in clean:
             parts = clean.split("±")
             val = parse_for_logic(parts[1].strip())
@@ -180,13 +219,23 @@ def get_solution_set(text_str):
         else:
              equations.append(parse_for_logic(clean))
 
+        # 2. Solver Logic
         if len(equations) > 1:
             sol = solve(equations, (x, y), set=True)
             return flatten_set(sol[1])
         else:
             expr = equations[0]
+            
+            # --- CRITICAL FIX FOR STATS/NUMBERS ---
+            # If the expression is just a number (like 3.0), return it directly.
+            # Don't try to solve "3.0 = 0" because that is impossible!
+            if expr.is_Number:
+                return flatten_set(sympy.FiniteSet(expr))
+            # --------------------------------------
+
             if isinstance(expr, tuple): return flatten_set(sympy.FiniteSet(expr))
             if isinstance(expr, Matrix): return flatten_set(sympy.FiniteSet(expr))
+            
             if isinstance(expr, Eq) or not (expr.is_Relational):
                  if 'y' in str(expr) and 'x' in str(expr): return flatten_set(sympy.FiniteSet(expr))
                  else:
@@ -224,7 +273,6 @@ def plot_system_interactive(text_str):
     try:
         x, y = symbols('x y')
         clean = clean_input(text_str)
-        # For graphing, we usually need the ACTIVE brain to resolve variables
         equations = []
         if ";" in clean:
             raw_eqs = clean.split(";")
@@ -287,35 +335,6 @@ def plot_system_interactive(text_str):
     except Exception as e:
         return None, None
 
-def validate_step(line_prev_str, line_curr_str):
-    debug_info = {}
-    try:
-        if not line_prev_str or not line_curr_str: return False, "Empty", "", {}
-        set_A = get_solution_set(line_prev_str)
-        set_B = get_solution_set(line_curr_str)
-        debug_info['Raw Set A'] = str(set_A)
-        debug_info['Raw Set B'] = str(set_B)
-        
-        if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
-        if set_B is None: return False, "Could not parse Line B", "", debug_info
-
-        if set_A == set_B: return True, "Valid", "", debug_info
-        try:
-            list_A = sorted([str(s) for s in set_A])
-            list_B = sorted([str(s) for s in set_B])
-            if list_A == list_B:
-                 return True, "Valid", "", debug_info
-        except: pass
-        
-        if check_numerical_equivalence(set_A, set_B):
-             return True, "Valid", "", debug_info
-
-        hint, internal_debug = diagnose_error(set_A, set_B)
-        return False, "Invalid", hint, debug_info
-
-    except Exception as e:
-        return False, f"Syntax Error: {e}", "", debug_info
-
 def process_image_with_mathpix(image_file, app_id, app_key):
     try:
         image_bytes = image_file.getvalue()
@@ -337,7 +356,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v8.3", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v8.5", page_icon="🧪")
 
 st.markdown("""
 <style>
@@ -360,7 +379,7 @@ with st.sidebar:
         st.code("diff(x^2, x)")
         st.caption("Answer: 2x")
         st.markdown("**Statistics**")
-        st.code("mean(1, 3, 5)")
+        st.code("median(1, 3, 5)")
         st.caption("Answer: 3")
         st.markdown("**Pre-Calc (Matrices)**")
         st.code("Matrix([[1,2],[3,4]])")
