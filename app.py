@@ -1,6 +1,6 @@
 import streamlit as st
 import sympy
-from sympy import symbols, solve, Eq, latex, simplify, I, pi, E
+from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 import datetime
 import pandas as pd
@@ -9,6 +9,7 @@ import numpy as np
 import plotly.graph_objects as go
 import requests
 import base64
+import statistics
 
 # --- SETUP SESSION STATE ---
 if 'line_prev' not in st.session_state:
@@ -55,10 +56,41 @@ def clean_input(text):
     text = text.replace("=<", "<=").replace("=>", ">=")
     return text
 
+# --- CUSTOM STATS FUNCTIONS FOR PARSER ---
+def my_mean(*args):
+    # Handle both mean(1,2,3) and mean([1,2,3])
+    if len(args) == 1 and isinstance(args[0], (list, tuple)):
+        return sympy.sympify(statistics.mean(args[0]))
+    return sympy.sympify(statistics.mean(args))
+
+def my_median(*args):
+    if len(args) == 1 and isinstance(args[0], (list, tuple)):
+        return sympy.sympify(statistics.median(args[0]))
+    return sympy.sympify(statistics.median(args))
+
+def my_stdev(*args):
+    if len(args) == 1 and isinstance(args[0], (list, tuple)):
+        return sympy.sympify(statistics.stdev(args[0]))
+    return sympy.sympify(statistics.stdev(args))
+
 def smart_parse(text, evaluate=True):
     transformations = (standard_transformations + (implicit_multiplication_application,))
     try:
-        local_dict = {'e': E, 'pi': pi}
+        # EXPANDED DICTIONARY FOR CALCULUS & STATS
+        local_dict = {
+            'e': E, 
+            'pi': pi, 
+            'diff': diff, 
+            'integrate': integrate, 
+            'limit': limit, 
+            'oo': oo,
+            'matrix': Matrix,
+            'factorial': factorial,
+            'mean': my_mean,
+            'median': my_median,
+            'stdev': my_stdev
+        }
+        
         if "<=" in text or ">=" in text or "<" in text or ">" in text:
             return parse_expr(text, transformations=transformations, evaluate=evaluate, local_dict=local_dict)
         elif "=" in text:
@@ -135,6 +167,10 @@ def get_solution_set(text_str):
         else:
             expr = equations[0]
             if isinstance(expr, tuple): return flatten_set(sympy.FiniteSet(expr))
+            # Handle Matrix Logic
+            if isinstance(expr, Matrix):
+                 return flatten_set(sympy.FiniteSet(expr))
+            
             if isinstance(expr, Eq) or not (expr.is_Relational):
                  if 'y' in str(expr) and 'x' in str(expr): return flatten_set(sympy.FiniteSet(expr))
                  else:
@@ -284,9 +320,9 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v7.0", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v8.0", page_icon="🧪")
 
-# --- CUSTOM CSS FOR POLISH ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <style>
     .big-font { font-size:20px !important; }
@@ -299,23 +335,19 @@ st.title("🧪 The Logic Lab")
 
 with st.sidebar:
     st.header("Settings")
-    
-    # --- RESET BUTTON ---
     if st.button("🗑️ Reset All Inputs", type="primary"):
         clear_all()
         st.rerun()
     
-    # --- DEMO CHEAT SHEET ---
     with st.expander("📚 Demo Cheat Sheet"):
-        st.markdown("**1. Quadratics**")
-        st.code("x^2 + 4 = 0")
-        st.caption("Answer: 2i, -2i")
-        st.markdown("**2. Trigonometry**")
-        st.code("sin(x) = 1")
-        st.caption("Answer: pi/2")
-        st.markdown("**3. Logarithms**")
-        st.code("log(x) = 1")
-        st.caption("Answer: e")
+        st.markdown("**Calculus**")
+        st.code("diff(x^2, x)")
+        st.caption("Answer: 2x")
+        st.markdown("**Statistics**")
+        st.code("mean(1, 3, 5)")
+        st.caption("Answer: 3")
+        st.markdown("**Pre-Calc (Matrices)**")
+        st.code("Matrix([[1,2],[3,4]])")
     
     st.markdown("---")
     
@@ -360,7 +392,7 @@ with st.expander("📷 Scan Handwritten Math", expanded=False):
                             st.rerun()
                     else:
                         st.warning("⚠️ No API Keys found. Running Simulation.")
-                        st.session_state.line_prev = "3x^2 + 5x - 2 = 0"
+                        st.session_state.line_prev = "diff(x^2, x)"
                         st.rerun()
 
 st.markdown("---")
@@ -368,9 +400,8 @@ st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
     st.markdown("### Previous Line")
-    st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="e.g. x^2 - 9 = 0")
+    st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="e.g. diff(x^2, x)")
     
-    # Render Math
     if st.session_state.line_prev:
         latex_str = pretty_print(st.session_state.line_prev)
         if latex_str: st.latex(latex_str)
@@ -398,26 +429,55 @@ with col2:
 
 st.markdown("---")
 
-# --- KEYPAD ---
+# --- EXPANDED KEYPAD (THE BIG UPDATE) ---
 with st.expander("⌨️ Show Keypad", expanded=False):
     st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
     
-    # COMPACT KEYPAD LAYOUT
-    b1, b2, b3, b4, b5, b6 = st.columns(6)
-    b1.button("x²", on_click=add_to_input, args=("^2",))
-    b2.button("√", on_click=add_to_input, args=("sqrt(",))
-    b3.button("(", on_click=add_to_input, args=("(",))
-    b4.button(")", on_click=add_to_input, args=(")",))
-    b5.button(";", on_click=add_to_input, args=("; ",))
-    b6.button("÷", on_click=add_to_input, args=("/",))
+    tab1, tab2, tab3, tab4 = st.tabs(["Algebra", "Calculus", "Statistics", "Pre-Calc"])
+    
+    with tab1: # Algebra
+        b1, b2, b3, b4, b5, b6 = st.columns(6)
+        b1.button("x²", on_click=add_to_input, args=("^2",))
+        b2.button("√", on_click=add_to_input, args=("sqrt(",))
+        b3.button("(", on_click=add_to_input, args=("(",))
+        b4.button(")", on_click=add_to_input, args=(")",))
+        b5.button("x", on_click=add_to_input, args=("x",))
+        b6.button("÷", on_click=add_to_input, args=("/",))
+        
+        b1, b2, b3, b4, b5, b6 = st.columns(6)
+        b1.button("i", on_click=add_to_input, args=("i",)) 
+        b2.button("π", on_click=add_to_input, args=("pi",))
+        b3.button("e", on_click=add_to_input, args=("e",))
+        b4.button("log", on_click=add_to_input, args=("log(",))
+        b5.button("sin", on_click=add_to_input, args=("sin(",))
+        b6.button("cos", on_click=add_to_input, args=("cos(",))
 
-    b1, b2, b3, b4, b5, b6 = st.columns(6)
-    b1.button("i", on_click=add_to_input, args=("i",)) 
-    b2.button("π", on_click=add_to_input, args=("pi",))
-    b3.button("e", on_click=add_to_input, args=("e",))
-    b4.button("log", on_click=add_to_input, args=("log(",))
-    b5.button("sin", on_click=add_to_input, args=("sin(",))
-    b6.button("cos", on_click=add_to_input, args=("cos(",))
+    with tab2: # Calculus
+        b1, b2, b3, b4, b5, b6 = st.columns(6)
+        b1.button("d/dx", on_click=add_to_input, args=("diff(",))
+        b2.button("∫", on_click=add_to_input, args=("integrate(",))
+        b3.button("lim", on_click=add_to_input, args=("limit(",))
+        b4.button("∞", on_click=add_to_input, args=("oo",))
+        b5.button(",", on_click=add_to_input, args=(", ",))
+        b6.button("dx", on_click=add_to_input, args=(", x",))
+
+    with tab3: # Stats
+        b1, b2, b3, b4, b5, b6 = st.columns(6)
+        b1.button("Mean", on_click=add_to_input, args=("mean(",))
+        b2.button("Median", on_click=add_to_input, args=("median(",))
+        b3.button("StDev", on_click=add_to_input, args=("stdev(",))
+        b4.button(",", on_click=add_to_input, args=(", ",))
+        b5.button("Mode", disabled=True, label="Mode (soon)")
+        b6.button("Norm", disabled=True, label="Norm (soon)")
+
+    with tab4: # Pre-Calc
+        b1, b2, b3, b4, b5, b6 = st.columns(6)
+        b1.button("Matrix", on_click=add_to_input, args=("Matrix([",))
+        b2.button("[ ]", on_click=add_to_input, args=("[",))
+        b3.button("]", on_click=add_to_input, args=("])",))
+        b4.button("n!", on_click=add_to_input, args=("factorial(",))
+        b5.button("Σ", disabled=True, label="Σ (soon)")
+        b6.button("∏", disabled=True, label="∏ (soon)")
 
 st.markdown("---")
 
@@ -429,7 +489,6 @@ with c_check:
         line_b = st.session_state.line_curr
         is_valid, status, hint, debug_data = validate_step(line_a, line_b)
         
-        # Log History
         now = datetime.datetime.now().strftime("%H:%M:%S")
         st.session_state.history.append({"Time": now, "Input A": line_a, "Input B": line_b, "Result": status})
         
