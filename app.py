@@ -1,21 +1,3 @@
-You are hitting a specific quirk where the "Logic Brain" (the active solver) is getting confused by the data format before it sends it to the calculator.
-
-Basically, median(1,3,5) is arriving at the logic engine, but the engine is saying, "Wait, is this a list of numbers or three separate numbers?" and failing silently.
-
-The Fix (v8.5):
-
-Bulletproof Stats: I am forcing the stats functions (mean, median, stdev) to accept any format (list, tuple, or separate numbers) and convert them to plain Python numbers before calculating.
-
-Smarter Solver: I updated the logic to recognize when the answer is just a Number (like 3) so it doesn't try to "solve for x" and return an empty set.
-
-Action: Update app.py to v8.5
-Edit app.py in GitHub.
-
-Delete All and paste this code.
-
-Commit and Refresh.
-
-Python
 import streamlit as st
 import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral
