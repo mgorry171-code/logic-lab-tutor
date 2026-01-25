@@ -54,7 +54,7 @@ def clean_input(text):
     text = text.replace("=<", "<=").replace("=>", ">=")
     return text
 
-# --- CUSTOM STATS FUNCTIONS (ROBUST) ---
+# --- CUSTOM STATS FUNCTIONS ---
 def sanitize_args(args):
     """Flattens mixed args and converts to floats."""
     data = []
@@ -67,10 +67,13 @@ def sanitize_args(args):
 
 def to_sympy_number(val):
     """Aggressively cleans numbers: 3.0 -> 3."""
-    val = round(val, 8) # Remove tiny floating point errors
-    if val == int(val):
-        return sympy.Integer(int(val))
-    return sympy.Float(val)
+    try:
+        val = round(val, 8) 
+        if val == int(val):
+            return sympy.Integer(int(val))
+        return sympy.Float(val)
+    except:
+        return sympy.nan
 
 def my_mean(*args):
     try:
@@ -189,12 +192,15 @@ def get_solution_set(text_str):
             parts = clean.split("±")
             val = parse_for_logic(parts[1].strip())
             return flatten_set(sympy.FiniteSet(val, -val))
-        elif "," in clean and "=" not in clean:
+        
+        # --- FIXED: Only split by comma if NOT inside parentheses ---
+        elif "," in clean and "=" not in clean and "(" not in clean:
             items = clean.split(",")
             vals = []
             for i in items:
                 if i.strip(): vals.append(parse_for_logic(i.strip()))
             return flatten_set(sympy.FiniteSet(*vals))
+        # ------------------------------------------------------------
 
         equations = []
         if ";" in clean:
@@ -215,7 +221,6 @@ def get_solution_set(text_str):
         else:
             expr = equations[0]
             
-            # NUMBER FIX
             if expr.is_Number:
                 return flatten_set(sympy.FiniteSet(expr))
 
@@ -257,7 +262,6 @@ def validate_step(line_prev_str, line_curr_str):
         set_A = get_solution_set(line_prev_str)
         set_B = get_solution_set(line_curr_str)
         
-        # DEBUG INFO CAPTURE
         debug_info['Set A'] = str(set_A)
         debug_info['Set B'] = str(set_B)
         
@@ -301,7 +305,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v8.9", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v9.0", page_icon="🧪")
 
 st.markdown("""
 <style>
@@ -479,11 +483,10 @@ with c_check:
         else:
             st.session_state.step_verified = False
             st.error("❌ Logic Break")
-            # --- X-RAY DEBUGGER (TEMPORARY) ---
+            # KEEP X-RAY FOR SAFETY
             st.markdown("#### 🛠️ X-Ray Debugger:")
             st.code(f"I calculated Set A as: {debug_data.get('Set A')}")
             st.code(f"I calculated Set B as: {debug_data.get('Set B')}")
-            # ----------------------------------
             if hint: st.info(f"💡 Hint: {hint}")
 
 with c_next:
