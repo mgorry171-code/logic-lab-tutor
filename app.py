@@ -9,12 +9,10 @@ import numpy as np
 import plotly.graph_objects as go
 import requests
 import base64
-from PIL import Image
-from io import BytesIO
 
 # --- SETUP SESSION STATE ---
 if 'line_prev' not in st.session_state:
-    st.session_state.line_prev = "x^2 + 4 = 0" 
+    st.session_state.line_prev = "" 
 if 'line_curr' not in st.session_state:
     st.session_state.line_curr = ""
 if 'history' not in st.session_state:
@@ -27,6 +25,11 @@ if 'last_image_bytes' not in st.session_state:
     st.session_state.last_image_bytes = None
 
 # --- HELPER FUNCTIONS ---
+def clear_all():
+    st.session_state.line_prev = ""
+    st.session_state.line_curr = ""
+    st.session_state.step_verified = False
+
 def add_to_input(text_to_add):
     if st.session_state.keypad_target == "Previous Line":
         st.session_state.line_prev += text_to_add
@@ -66,10 +69,11 @@ def smart_parse(text, evaluate=True):
         else:
             return parse_expr(text, transformations=transformations, evaluate=evaluate, local_dict=local_dict)
     except:
-        return sympify(text, evaluate=evaluate)
+        return sympy.sympify(text, evaluate=evaluate)
 
 def pretty_print(math_str):
     try:
+        if not math_str: return ""
         clean_str = clean_input(math_str)
         clean_str = clean_str.replace("±", "±")
         if ";" in clean_str:
@@ -79,12 +83,12 @@ def pretty_print(math_str):
         expr = smart_parse(clean_str, evaluate=False)
         return latex(expr)
     except:
-        return None
+        return math_str
 
 def convert_df_to_csv(df):
     return df.to_csv(index=False).encode('utf-8')
 
-# --- LOGIC BRAIN 5.3 ---
+# --- LOGIC BRAIN ---
 def flatten_set(s):
     if s is None: return set()
     flat_items = []
@@ -143,43 +147,21 @@ def get_solution_set(text_str):
     except Exception as e:
         return None
 
-def check_simplification(text):
-    try:
-        clean = clean_input(text)
-        expr = smart_parse(clean, evaluate=False)
-        if isinstance(expr, Eq): rhs = expr.rhs
-        else: rhs = expr
-        if rhs.is_Number or rhs.is_Symbol: return True
-        if rhs.is_Mul and len(rhs.args) == 2 and rhs.args[0] == -1 and rhs.args[1].is_Number: return True
-        if rhs.has(I): return True
-        return False
-    except:
-        return True
-
-def diagnose_error(set_correct, set_user):
-    return "Check your math logic.", ""
-
 def check_numerical_equivalence(set_a, set_b):
-    """
-    Evaluates sets numerically to handle 13/2 vs 6.5
-    """
     try:
-        # Convert to list of complex numbers (handles floats, ints, imaginary)
         list_a = [complex(i.evalf()) for i in set_a]
         list_b = [complex(i.evalf()) for i in set_b]
-
-        # Sort primarily by real part, secondarily by imaginary
         list_a.sort(key=lambda z: (z.real, z.imag))
         list_b.sort(key=lambda z: (z.real, z.imag))
-
         if len(list_a) != len(list_b): return False
-
-        # Check closeness (tolerance for float math)
         for a, b in zip(list_a, list_b):
                 if not np.isclose(a, b, atol=1e-8): return False
         return True
     except:
         return False
+
+def diagnose_error(set_correct, set_user):
+    return "Check your math logic.", ""
 
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
@@ -264,21 +246,17 @@ def validate_step(line_prev_str, line_curr_str):
         if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
         if set_B is None: return False, "Could not parse Line B", "", debug_info
 
-        # 1. Strict Symbolic Match
         if set_A == set_B: return True, "Valid", "", debug_info
-        
-        # 2. String Match Fallback
         try:
             list_A = sorted([str(s) for s in set_A])
             list_B = sorted([str(s) for s in set_B])
             if list_A == list_B:
                  return True, "Valid", "", debug_info
         except: pass
-
-        # 3. Numerical Equivalence (NEW FIX)
+        
         if check_numerical_equivalence(set_A, set_B):
              return True, "Valid", "", debug_info
-        
+
         hint, internal_debug = diagnose_error(set_A, set_B)
         return False, "Invalid", hint, debug_info
 
@@ -291,47 +269,54 @@ def process_image_with_mathpix(image_file, app_id, app_key):
         image_base64 = base64.b64encode(image_bytes).decode('utf-8')
         data_uri = f"data:image/jpeg;base64,{image_base64}"
         url = "https://api.mathpix.com/v3/text"
-        headers = {
-            "app_id": app_id,
-            "app_key": app_key,
-            "Content-type": "application/json"
-        }
-        data = {
-            "src": data_uri,
-            "formats": ["asciimath", "text", "latex_simplified"],
-            "data_options": {"include_asciimath": True}
-        }
+        headers = {"app_id": app_id, "app_key": app_key, "Content-type": "application/json"}
+        data = {"src": data_uri, "formats": ["asciimath", "text", "latex_simplified"], "data_options": {"include_asciimath": True}}
         response = requests.post(url, json=data, headers=headers)
         response.raise_for_status()
         result = response.json()
-        
-        if 'asciimath' in result:
-             return result['asciimath']
-        elif 'text' in result:
-            return result['text']
-        elif 'latex_simplified' in result:
-            return result['latex_simplified']
-        else:
-            return None
+        if 'asciimath' in result: return result['asciimath']
+        elif 'text' in result: return result['text']
+        elif 'latex_simplified' in result: return result['latex_simplified']
+        else: return None
     except Exception as e:
         st.error(f"OCR Error: {e}")
         return None
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v6.5", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v7.0", page_icon="🧪")
+
+# --- CUSTOM CSS FOR POLISH ---
+st.markdown("""
+<style>
+    .big-font { font-size:20px !important; }
+    .stButton>button { width: 100%; border-radius: 5px; }
+    .success-box { padding: 10px; background-color: #d4edda; color: #155724; border-radius: 5px; text-align: center; }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🧪 The Logic Lab")
 
 with st.sidebar:
     st.header("Settings")
-    if st.session_state.history:
-        st.write(f"Problems Checked: **{len(st.session_state.history)}**")
-        df = pd.DataFrame(st.session_state.history)
-        csv = convert_df_to_csv(df)
-        st.download_button("📊 Download Session Data", csv, "Math_Session.csv", "text/csv")
-        if st.button("Clear History"):
-            st.session_state.history = []
-            st.rerun()
+    
+    # --- RESET BUTTON ---
+    if st.button("🗑️ Reset All Inputs", type="primary"):
+        clear_all()
+        st.rerun()
+    
+    # --- DEMO CHEAT SHEET ---
+    with st.expander("📚 Demo Cheat Sheet"):
+        st.markdown("**1. Quadratics**")
+        st.code("x^2 + 4 = 0")
+        st.caption("Answer: 2i, -2i")
+        st.markdown("**2. Trigonometry**")
+        st.code("sin(x) = 1")
+        st.caption("Answer: pi/2")
+        st.markdown("**3. Logarithms**")
+        st.code("log(x) = 1")
+        st.caption("Answer: e")
+    
     st.markdown("---")
     
     mp_id = None
@@ -342,160 +327,121 @@ with st.sidebar:
         st.success("✅ Camera Active (Licensed)")
     else:
         st.subheader("📷 Camera Settings")
-        st.caption("Enter Keys to enable real scanning. Empty keys = Demo Mode.")
         mp_id = st.text_input("Mathpix App ID", type="password")
         mp_key = st.text_input("Mathpix App Key", type="password")
 
     st.markdown("---")
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode", value=False)
     st.markdown("---")
-    show_debug = st.checkbox("🛠️ Engineer Mode", value=False)
+    
+    if st.session_state.history:
+        st.write(f"Problems Checked: **{len(st.session_state.history)}**")
+        if st.button("Clear History"):
+            st.session_state.history = []
+            st.rerun()
 
 # --- CAMERA INPUT ---
 with st.expander("📷 Scan Handwritten Math", expanded=False):
-    enable_cam = st.checkbox("Enable Camera Stream (Uncheck to save battery)")
-    
+    enable_cam = st.checkbox("Enable Camera Stream")
     if enable_cam:
         cam_col1, cam_col2 = st.columns([1, 3])
         with cam_col1:
-            img_file = st.camera_input("Take a photo")
+            img_file = st.camera_input("Take a photo", label_visibility="collapsed")
         with cam_col2:
             if img_file is not None:
                 current_bytes = img_file.getvalue()
                 if current_bytes != st.session_state.last_image_bytes:
                     st.session_state.last_image_bytes = current_bytes 
-                    
                     st.write("Processing...")
                     if mp_id and mp_key:
                         extracted_text = process_image_with_mathpix(img_file, mp_id, mp_key)
                         if extracted_text:
-                            # Clean it immediately before state
-                            extracted_text = clean_input(extracted_text)
-                            st.session_state.line_prev = extracted_text
-                            st.success(f"Scanned: {extracted_text}")
+                            st.session_state.line_prev = clean_input(extracted_text)
+                            st.rerun()
                     else:
                         st.warning("⚠️ No API Keys found. Running Simulation.")
                         st.session_state.line_prev = "3x^2 + 5x - 2 = 0"
-                        st.success("Simulated Scan: 3x^2 + 5x - 2 = 0")
+                        st.rerun()
 
 st.markdown("---")
 
 col1, col2 = st.columns(2)
 with col1:
     st.markdown("### Previous Line")
-    st.text_input("Line A", key="line_prev", label_visibility="collapsed")
-    if st.session_state.line_prev: 
-        st.latex(pretty_print(st.session_state.line_prev))
+    st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="e.g. x^2 - 9 = 0")
+    
+    # Render Math
+    if st.session_state.line_prev:
+        latex_str = pretty_print(st.session_state.line_prev)
+        if latex_str: st.latex(latex_str)
         
         if parent_mode:
-            if st.button("👁️ Reveal Answer for Line A"):
+            if st.button("👁️ Reveal Answer"):
                 sol_set = get_solution_set(st.session_state.line_prev)
                 if sol_set:
-                    st.success("**Answer Key:**")
+                    st.success("**Key:**")
                     st.latex(latex(sol_set))
                 else:
-                    st.error("Could not solve this expression.")
+                    st.error("Could not solve.")
         
-        if st.checkbox("📈 Visualize Graph"):
+        if st.checkbox("📈 Graph"):
             fig, table_list = plot_system_interactive(st.session_state.line_prev)
             if fig:
-                tab1, tab2 = st.tabs(["📉 Interactive Graph", "🔢 Table of Values"])
-                with tab1:
-                    st.plotly_chart(fig, use_container_width=True)
-                    st.caption("Hover to see points.")
-                with tab2:
-                    st.write("Use these T-Charts to plot the lines:")
-                    if table_list:
-                        if len(table_list) == 2:
-                            t1, t2 = st.columns(2)
-                            with t1:
-                                st.write(table_list[0]["label"])
-                                st.dataframe(table_list[0]["df"], hide_index=True)
-                            with t2:
-                                st.write(table_list[1]["label"])
-                                st.dataframe(table_list[1]["df"], hide_index=True)
-                        else:
-                            for item in table_list:
-                                st.write(item["label"])
-                                st.dataframe(item["df"], hide_index=True)
-            else:
-                st.caption("Could not graph this expression.")
+                st.plotly_chart(fig, use_container_width=True)
 
 with col2:
     st.markdown("### Current Line")
-    st.text_input("Line B", key="line_curr", label_visibility="collapsed")
-    if st.session_state.line_curr: st.latex(pretty_print(st.session_state.line_curr))
+    st.text_input("Line B", key="line_curr", label_visibility="collapsed", placeholder="Type your next step...")
+    if st.session_state.line_curr:
+        latex_str = pretty_print(st.session_state.line_curr)
+        if latex_str: st.latex(latex_str)
 
 st.markdown("---")
 
-with st.expander("⌨️ Show Math Keypad", expanded=False):
-    st.write("Click a button to add it to the **" + st.session_state.keypad_target + "**.")
+# --- KEYPAD ---
+with st.expander("⌨️ Show Keypad", expanded=False):
     st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
-    st.write("") 
     
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.button("x²", on_click=add_to_input, args=("^2",))
-    c2.button("√", on_click=add_to_input, args=("sqrt(",))
-    c3.button("(", on_click=add_to_input, args=("(",))
-    c4.button(")", on_click=add_to_input, args=(")",))
-    c5.button(";", on_click=add_to_input, args=("; ",))
-    c6.button("÷", on_click=add_to_input, args=("/",))
+    # COMPACT KEYPAD LAYOUT
+    b1, b2, b3, b4, b5, b6 = st.columns(6)
+    b1.button("x²", on_click=add_to_input, args=("^2",))
+    b2.button("√", on_click=add_to_input, args=("sqrt(",))
+    b3.button("(", on_click=add_to_input, args=("(",))
+    b4.button(")", on_click=add_to_input, args=(")",))
+    b5.button(";", on_click=add_to_input, args=("; ",))
+    b6.button("÷", on_click=add_to_input, args=("/",))
 
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.button(" < ", on_click=add_to_input, args=("<",))
-    c2.button("\>", on_click=add_to_input, args=(">",)) 
-    c3.button(" ≤ ", on_click=add_to_input, args=("<=",))
-    c4.button(" ≥ ", on_click=add_to_input, args=(">=",))
-    c5.button("x", on_click=add_to_input, args=("x",))
-    c6.button("y", on_click=add_to_input, args=("y",))
-    
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.button("i", on_click=add_to_input, args=("i",)) 
-    c2.button("π", on_click=add_to_input, args=("pi",))
-    c3.button("e", on_click=add_to_input, args=("e",))
-    c4.button("log", on_click=add_to_input, args=("log(",))
-    c5.button("sin", on_click=add_to_input, args=("sin(",))
-    c6.button("cos", on_click=add_to_input, args=("cos(",))
+    b1, b2, b3, b4, b5, b6 = st.columns(6)
+    b1.button("i", on_click=add_to_input, args=("i",)) 
+    b2.button("π", on_click=add_to_input, args=("pi",))
+    b3.button("e", on_click=add_to_input, args=("e",))
+    b4.button("log", on_click=add_to_input, args=("log(",))
+    b5.button("sin", on_click=add_to_input, args=("sin(",))
+    b6.button("cos", on_click=add_to_input, args=("cos(",))
 
 st.markdown("---")
 
+# --- ACTION AREA ---
 c_check, c_next = st.columns([1, 1])
 with c_check:
     if st.button("Check Logic", type="primary"):
         line_a = st.session_state.line_prev
         line_b = st.session_state.line_curr
         is_valid, status, hint, debug_data = validate_step(line_a, line_b)
+        
+        # Log History
         now = datetime.datetime.now().strftime("%H:%M:%S")
-        st.session_state.history.append({
-            "Time": now, "Input A": line_a, "Input B": line_b, "Result": status, "Hint": hint
-        })
+        st.session_state.history.append({"Time": now, "Input A": line_a, "Input B": line_b, "Result": status})
+        
         if is_valid:
             st.session_state.step_verified = True 
-            if status == "Valid":
-                st.success("✅ **Perfect Logic!**")
-                st.balloons()
-            elif status == "Unsimplified":
-                st.warning("⚠️ **Correct, but not fully simplified.**")
-                st.info("💡 **Hint:** Perform the arithmetic.")
-            elif status == "Partial":
-                st.warning("⚠️ **Technically Correct, but Incomplete.**")
+            st.balloons()
+            st.markdown(f"<div class='success-box'><b>✅ Perfect Logic!</b></div>", unsafe_allow_html=True)
         else:
             st.session_state.step_verified = False
-            st.error("❌ **Logic Break**")
-            if hint and hint != "Logic error.":
-                st.info(f"💡 **Hint:** {hint}")
-        if not is_valid and show_debug:
-            st.markdown("---")
-            st.write("🛠️ **Debug X-Ray:**")
-            st.write(f"**Raw Set A:** `{debug_data.get('Raw Set A')}`")
-            st.write(f"**Raw Set B:** `{debug_data.get('Raw Set B')}`")
+            st.error("❌ Logic Break")
+            if hint: st.info(f"💡 Hint: {hint}")
 
 with c_next:
     if st.session_state.step_verified:
         st.button("⬇️ Next Step (Move Down)", on_click=next_step)
-
-st.markdown("---")
-st.markdown(
-    """<div style='text-align: center; color: #666;'><small>Built by The Logic Lab 🧪 | © 2026 Step-Checker</small></div>""",
-    unsafe_allow_html=True
-)
