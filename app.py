@@ -35,6 +35,16 @@ def add_to_input(text_to_add):
 
 def clean_input(text):
     text = text.lower()
+    # --- NEW CLEANING LOGIC ---
+    # Strip LaTeX wrappers \( \) and \[ \]
+    text = text.replace(r"\(", "").replace(r"\)", "")
+    text = text.replace(r"\[", "").replace(r"\]", "")
+    # Remove backslashes (fixes \sin, \pi, etc.)
+    text = text.replace("\\", "")
+    # Remove backticks if AsciiMath sends them
+    text = text.replace("`", "")
+    # --------------------------
+    
     text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
     text = text.replace(" and ", ",") 
     text = text.replace("^", "**")
@@ -261,18 +271,23 @@ def process_image_with_mathpix(image_file, app_id, app_key):
             "app_key": app_key,
             "Content-type": "application/json"
         }
+        # --- THE FIX: Ask for 'asciimath' which is friendlier to our app ---
         data = {
             "src": data_uri,
-            "formats": ["text", "latex_simplified"],
+            "formats": ["asciimath", "text", "latex_simplified"],
             "data_options": {"include_asciimath": True}
         }
         response = requests.post(url, json=data, headers=headers)
         response.raise_for_status()
         result = response.json()
-        if 'latex_simplified' in result:
-            return result['latex_simplified']
+        
+        # Priority: AsciiMath -> Text -> LaTeX
+        if 'asciimath' in result:
+             return result['asciimath']
         elif 'text' in result:
             return result['text']
+        elif 'latex_simplified' in result:
+            return result['latex_simplified']
         else:
             return None
     except Exception as e:
@@ -281,7 +296,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v6.3", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v6.4", page_icon="🧪")
 st.title("🧪 The Logic Lab")
 
 with st.sidebar:
@@ -296,10 +311,8 @@ with st.sidebar:
             st.rerun()
     st.markdown("---")
     
-    # --- AUTO-DETECT KEYS FROM SECRETS (THE VAULT) ---
     mp_id = None
     mp_key = None
-    
     if "mathpix_app_id" in st.secrets and "mathpix_app_key" in st.secrets:
         mp_id = st.secrets["mathpix_app_id"]
         mp_key = st.secrets["mathpix_app_key"]
@@ -333,6 +346,8 @@ with st.expander("📷 Scan Handwritten Math", expanded=False):
                     if mp_id and mp_key:
                         extracted_text = process_image_with_mathpix(img_file, mp_id, mp_key)
                         if extracted_text:
+                            # Clean it immediately before state
+                            extracted_text = clean_input(extracted_text)
                             st.session_state.line_prev = extracted_text
                             st.success(f"Scanned: {extracted_text}")
                     else:
@@ -416,48 +431,4 @@ with st.expander("⌨️ Show Math Keypad", expanded=False):
     c2.button("π", on_click=add_to_input, args=("pi",))
     c3.button("e", on_click=add_to_input, args=("e",))
     c4.button("log", on_click=add_to_input, args=("log(",))
-    c5.button("sin", on_click=add_to_input, args=("sin(",))
-    c6.button("cos", on_click=add_to_input, args=("cos(",))
-
-st.markdown("---")
-
-c_check, c_next = st.columns([1, 1])
-with c_check:
-    if st.button("Check Logic", type="primary"):
-        line_a = st.session_state.line_prev
-        line_b = st.session_state.line_curr
-        is_valid, status, hint, debug_data = validate_step(line_a, line_b)
-        now = datetime.datetime.now().strftime("%H:%M:%S")
-        st.session_state.history.append({
-            "Time": now, "Input A": line_a, "Input B": line_b, "Result": status, "Hint": hint
-        })
-        if is_valid:
-            st.session_state.step_verified = True 
-            if status == "Valid":
-                st.success("✅ **Perfect Logic!**")
-                st.balloons()
-            elif status == "Unsimplified":
-                st.warning("⚠️ **Correct, but not fully simplified.**")
-                st.info("💡 **Hint:** Perform the arithmetic.")
-            elif status == "Partial":
-                st.warning("⚠️ **Technically Correct, but Incomplete.**")
-        else:
-            st.session_state.step_verified = False
-            st.error("❌ **Logic Break**")
-            if hint and hint != "Logic error.":
-                st.info(f"💡 **Hint:** {hint}")
-        if not is_valid and show_debug:
-            st.markdown("---")
-            st.write("🛠️ **Debug X-Ray:**")
-            st.write(f"**Raw Set A:** `{debug_data.get('Raw Set A')}`")
-            st.write(f"**Raw Set B:** `{debug_data.get('Raw Set B')}`")
-
-with c_next:
-    if st.session_state.step_verified:
-        st.button("⬇️ Next Step (Move Down)", on_click=next_step)
-
-st.markdown("---")
-st.markdown(
-    """<div style='text-align: center; color: #666;'><small>Built by The Logic Lab 🧪 | © 2026 Step-Checker</small></div>""",
-    unsafe_allow_html=True
-)
+    c5.button("sin", on_click=add
