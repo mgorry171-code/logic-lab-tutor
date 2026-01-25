@@ -1,17 +1,3 @@
-This is a common "growing pain" when adding more buttons!
-
-The Error: StreamlitDuplicateElementId The Cause: You now have two buttons labeled "," (one in the Calculus tab and one in the Statistics tab). Streamlit gets confused because it doesn't know which one is which.
-
-The Fix: We just need to give each button a unique "nickname" (a key) so Streamlit can tell them apart.
-
-Action: Update app.py to v8.1 (Fix)
-Edit app.py in GitHub.
-
-Delete All and paste this corrected code.
-
-Commit and Refresh.
-
-Python
 import streamlit as st
 import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial
