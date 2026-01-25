@@ -320,7 +320,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v8.1", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v8.2", page_icon="🧪")
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -429,7 +429,7 @@ with col2:
 
 st.markdown("---")
 
-# --- EXPANDED KEYPAD (FIXED ID ERROR) ---
+# --- EXPANDED KEYPAD (FIXED ARGS ERROR) ---
 with st.expander("⌨️ Show Keypad", expanded=False):
     st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
     
@@ -458,7 +458,7 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b2.button("∫", on_click=add_to_input, args=("integrate(",))
         b3.button("lim", on_click=add_to_input, args=("limit(",))
         b4.button("∞", on_click=add_to_input, args=("oo",))
-        b5.button(",", on_click=add_to_input, args=(", ",), key="calc_comma") # Added Key
+        b5.button(",", on_click=add_to_input, args=(", ",), key="calc_comma") 
         b6.button("dx", on_click=add_to_input, args=(", x",))
 
     with tab3: # Stats
@@ -466,9 +466,9 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b1.button("Mean", on_click=add_to_input, args=("mean(",))
         b2.button("Median", on_click=add_to_input, args=("median(",))
         b3.button("StDev", on_click=add_to_input, args=("stdev(",))
-        b4.button(",", on_click=add_to_input, args=(", ",), key="stats_comma") # Added Key
-        b5.button("Mode", disabled=True, label="Mode (soon)")
-        b6.button("Norm", disabled=True, label="Norm (soon)")
+        b4.button(",", on_click=add_to_input, args=(", ",), key="stats_comma") 
+        b5.button("Mode (soon)", disabled=True) # FIXED
+        b6.button("Norm (soon)", disabled=True) # FIXED
 
     with tab4: # Pre-Calc
         b1, b2, b3, b4, b5, b6 = st.columns(6)
@@ -476,8 +476,8 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b2.button("[ ]", on_click=add_to_input, args=("[",))
         b3.button("]", on_click=add_to_input, args=("])",))
         b4.button("n!", on_click=add_to_input, args=("factorial(",))
-        b5.button("Σ", disabled=True, label="Σ (soon)")
-        b6.button("∏", disabled=True, label="∏ (soon)")
+        b5.button("Σ (soon)", disabled=True) # FIXED
+        b6.button("∏ (soon)", disabled=True) # FIXED
 
 st.markdown("---")
 
