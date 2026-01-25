@@ -1,3 +1,25 @@
+This is the classic "Fraction vs. Decimal" conflict.
+
+The Problem:
+
+Input A: 13/2 is stored as an exact Fraction.
+
+Input B: 6.5 is stored as a Floating Point Decimal.
+
+The Conflict: To a computer, "Exact Fraction" and "Approximate Decimal" are two different data types, so it says False.
+
+Previous Fallback: My "String Match" fix also failed because "13/2" does not look like "6.5".
+
+The Fix (v6.5): I am adding a "Numerical Translator" to the validation step. If the strict check fails, the app will now calculate the actual numerical value of both sides (e.g., convert both to 6.5) and compare those.
+
+Action:
+Edit app.py in GitHub.
+
+Delete All and paste this code.
+
+Commit and Refresh.
+
+Python
 import streamlit as st
 import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E
@@ -35,15 +57,11 @@ def add_to_input(text_to_add):
 
 def clean_input(text):
     text = text.lower()
-    # --- NEW CLEANING LOGIC ---
-    # Strip LaTeX wrappers \( \) and \[ \]
+    # Strip LaTeX wrappers
     text = text.replace(r"\(", "").replace(r"\)", "")
     text = text.replace(r"\[", "").replace(r"\]", "")
-    # Remove backslashes (fixes \sin, \pi, etc.)
     text = text.replace("\\", "")
-    # Remove backticks if AsciiMath sends them
     text = text.replace("`", "")
-    # --------------------------
     
     text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
     text = text.replace(" and ", ",") 
@@ -163,6 +181,28 @@ def check_simplification(text):
 def diagnose_error(set_correct, set_user):
     return "Check your math logic.", ""
 
+def check_numerical_equivalence(set_a, set_b):
+    """
+    Evaluates sets numerically to handle 13/2 vs 6.5
+    """
+    try:
+        # Convert to list of complex numbers (handles floats, ints, imaginary)
+        list_a = [complex(i.evalf()) for i in set_a]
+        list_b = [complex(i.evalf()) for i in set_b]
+
+        # Sort primarily by real part, secondarily by imaginary
+        list_a.sort(key=lambda z: (z.real, z.imag))
+        list_b.sort(key=lambda z: (z.real, z.imag))
+
+        if len(list_a) != len(list_b): return False
+
+        # Check closeness (tolerance for float math)
+        for a, b in zip(list_a, list_b):
+                if not np.isclose(a, b, atol=1e-8): return False
+        return True
+    except:
+        return False
+
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
     st.session_state.line_curr = ""
@@ -246,13 +286,20 @@ def validate_step(line_prev_str, line_curr_str):
         if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
         if set_B is None: return False, "Could not parse Line B", "", debug_info
 
+        # 1. Strict Symbolic Match
         if set_A == set_B: return True, "Valid", "", debug_info
+        
+        # 2. String Match Fallback
         try:
             list_A = sorted([str(s) for s in set_A])
             list_B = sorted([str(s) for s in set_B])
             if list_A == list_B:
                  return True, "Valid", "", debug_info
         except: pass
+
+        # 3. Numerical Equivalence (NEW FIX)
+        if check_numerical_equivalence(set_A, set_B):
+             return True, "Valid", "", debug_info
         
         hint, internal_debug = diagnose_error(set_A, set_B)
         return False, "Invalid", hint, debug_info
@@ -271,7 +318,6 @@ def process_image_with_mathpix(image_file, app_id, app_key):
             "app_key": app_key,
             "Content-type": "application/json"
         }
-        # --- THE FIX: Ask for 'asciimath' which is friendlier to our app ---
         data = {
             "src": data_uri,
             "formats": ["asciimath", "text", "latex_simplified"],
@@ -281,7 +327,6 @@ def process_image_with_mathpix(image_file, app_id, app_key):
         response.raise_for_status()
         result = response.json()
         
-        # Priority: AsciiMath -> Text -> LaTeX
         if 'asciimath' in result:
              return result['asciimath']
         elif 'text' in result:
@@ -296,7 +341,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v6.4", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v6.5", page_icon="🧪")
 st.title("🧪 The Logic Lab")
 
 with st.sidebar:
