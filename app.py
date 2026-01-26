@@ -118,7 +118,7 @@ def parse_for_display(text):
             'diff': Derivative,      
             'integrate': Integral,   
             'limit': limit,
-            'matrix': Function('Matrix'), # STOP! Do not calculate. Just show the word.
+            'matrix': Function('Matrix'), 
             'factorial': factorial,
             'mean': Function('Mean'),       
             'avg': Function('Mean'),         
@@ -250,11 +250,28 @@ def get_solution_set(text_str):
 
 def check_numerical_equivalence(set_a, set_b, tolerance=1e-8):
     try:
+        # MATRIX HANDLING
+        list_a = list(set_a)
+        list_b = list(set_b)
+        
+        if len(list_a) != len(list_b): return False
+        
+        # Check if items are Matrices
+        if isinstance(list_a[0], ImmutableDenseMatrix) or isinstance(list_b[0], ImmutableDenseMatrix):
+            mat_a = list_a[0]
+            mat_b = list_b[0]
+            # 1. Exact Match
+            if mat_a == mat_b: return True
+            # 2. Transpose Match (Forgiving Mode)
+            if mat_a == mat_b.T: return True
+            return False
+
+        # STANDARD NUMBER HANDLING
         list_a = [complex(i.evalf()) for i in set_a]
         list_b = [complex(i.evalf()) for i in set_b]
         list_a.sort(key=lambda z: (z.real, z.imag))
         list_b.sort(key=lambda z: (z.real, z.imag))
-        if len(list_a) != len(list_b): return False
+        
         for a, b in zip(list_a, list_b):
                 if not np.isclose(a, b, atol=tolerance): return False
         return True
@@ -274,6 +291,7 @@ def validate_step(line_prev_str, line_curr_str):
         if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
         if set_B is None: return False, "Could not parse Line B", "", debug_info
 
+        # 1. STRICT CHECK (Exact Match)
         if set_A == set_B: return True, "Valid", "", debug_info
         try:
             list_A = sorted([str(s) for s in set_A])
@@ -282,9 +300,11 @@ def validate_step(line_prev_str, line_curr_str):
                  return True, "Valid", "", debug_info
         except: pass
         
+        # 2. NUMERICAL CHECK (Strict 1e-8)
         if check_numerical_equivalence(set_A, set_B, tolerance=1e-8):
              return True, "Valid", "", debug_info
         
+        # 3. ROUNDING CHECK (Lenient 0.01)
         if check_numerical_equivalence(set_A, set_B, tolerance=0.01):
              return True, "Valid (Rounded)", "Approximation accepted.", debug_info
 
@@ -314,7 +334,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v9.4", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v9.5", page_icon="🧪")
 
 st.markdown("""
 <style>
