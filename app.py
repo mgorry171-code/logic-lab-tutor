@@ -1,6 +1,6 @@
 import streamlit as st
 import sympy
-from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral
+from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral, ImmutableDenseMatrix
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 import datetime
 import pandas as pd
@@ -25,7 +25,7 @@ if 'step_verified' not in st.session_state:
 if 'last_image_bytes' not in st.session_state:
     st.session_state.last_image_bytes = None
 
-# --- HELPER FUNCTIONS (Moved to Top for Safety) ---
+# --- HELPER FUNCTIONS ---
 def clear_all():
     st.session_state.line_prev = ""
     st.session_state.line_curr = ""
@@ -118,7 +118,7 @@ def parse_for_display(text):
             'diff': Derivative,      
             'integrate': Integral,   
             'limit': limit,
-            'matrix': Matrix,
+            'matrix': Matrix, # Display can use standard matrix
             'factorial': factorial,
             'mean': Function('Mean'),       
             'avg': Function('Mean'),         
@@ -145,7 +145,8 @@ def parse_for_logic(text):
     try:
         logic_dict = {
             'e': E, 'pi': pi, 'diff': diff, 'integrate': integrate, 'limit': limit, 'oo': oo,
-            'matrix': Matrix, 'factorial': factorial,
+            'matrix': ImmutableDenseMatrix, # CRITICAL FIX: Use ImmutableMatrix
+            'factorial': factorial,
             'mean': my_mean, 
             'avg': my_mean,        
             'median': my_median, 
@@ -198,7 +199,6 @@ def get_solution_set(text_str):
             val = parse_for_logic(parts[1].strip())
             return flatten_set(sympy.FiniteSet(val, -val))
         
-        # Only split by comma if NOT inside parentheses
         elif "," in clean and "=" not in clean and "(" not in clean:
             items = clean.split(",")
             vals = []
@@ -229,7 +229,10 @@ def get_solution_set(text_str):
                 return flatten_set(sympy.FiniteSet(expr))
 
             if isinstance(expr, tuple): return flatten_set(sympy.FiniteSet(expr))
-            if isinstance(expr, Matrix): return flatten_set(sympy.FiniteSet(expr))
+            
+            # Matrix Handling (Immutable)
+            if isinstance(expr, ImmutableDenseMatrix): 
+                return flatten_set(sympy.FiniteSet(expr))
             
             if isinstance(expr, Eq) or not (expr.is_Relational):
                  if 'y' in str(expr) and 'x' in str(expr): return flatten_set(sympy.FiniteSet(expr))
@@ -309,7 +312,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v9.1", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v9.2", page_icon="🧪")
 
 st.markdown("""
 <style>
