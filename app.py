@@ -1,6 +1,6 @@
 import streamlit as st
 import sympy
-from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral, ImmutableDenseMatrix
+from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 import datetime
 import pandas as pd
@@ -118,7 +118,7 @@ def parse_for_display(text):
             'diff': Derivative,      
             'integrate': Integral,   
             'limit': limit,
-            'matrix': Matrix, # Display can use standard matrix
+            'matrix': Matrix,
             'factorial': factorial,
             'mean': Function('Mean'),       
             'avg': Function('Mean'),         
@@ -145,8 +145,7 @@ def parse_for_logic(text):
     try:
         logic_dict = {
             'e': E, 'pi': pi, 'diff': diff, 'integrate': integrate, 'limit': limit, 'oo': oo,
-            'matrix': ImmutableDenseMatrix, # CRITICAL FIX: Use ImmutableMatrix
-            'factorial': factorial,
+            'matrix': Matrix, 'factorial': factorial,
             'mean': my_mean, 
             'avg': my_mean,        
             'median': my_median, 
@@ -193,7 +192,6 @@ def get_solution_set(text_str):
     x, y = symbols('x y')
     clean = clean_input(text_str)
     try:
-        # 1. Parse using the Active Brain
         if "±" in clean:
             parts = clean.split("±")
             val = parse_for_logic(parts[1].strip())
@@ -218,7 +216,6 @@ def get_solution_set(text_str):
         else:
              equations.append(parse_for_logic(clean))
 
-        # 2. Solver Logic
         if len(equations) > 1:
             sol = solve(equations, (x, y), set=True)
             return flatten_set(sol[1])
@@ -227,12 +224,8 @@ def get_solution_set(text_str):
             
             if expr.is_Number:
                 return flatten_set(sympy.FiniteSet(expr))
-
             if isinstance(expr, tuple): return flatten_set(sympy.FiniteSet(expr))
-            
-            # Matrix Handling (Immutable)
-            if isinstance(expr, ImmutableDenseMatrix): 
-                return flatten_set(sympy.FiniteSet(expr))
+            if isinstance(expr, Matrix): return flatten_set(sympy.FiniteSet(expr))
             
             if isinstance(expr, Eq) or not (expr.is_Relational):
                  if 'y' in str(expr) and 'x' in str(expr): return flatten_set(sympy.FiniteSet(expr))
@@ -249,7 +242,8 @@ def get_solution_set(text_str):
     except Exception as e:
         return None
 
-def check_numerical_equivalence(set_a, set_b):
+def check_numerical_equivalence(set_a, set_b, tolerance=1e-8):
+    """Checks if sets are equal within a specific tolerance."""
     try:
         list_a = [complex(i.evalf()) for i in set_a]
         list_b = [complex(i.evalf()) for i in set_b]
@@ -257,7 +251,7 @@ def check_numerical_equivalence(set_a, set_b):
         list_b.sort(key=lambda z: (z.real, z.imag))
         if len(list_a) != len(list_b): return False
         for a, b in zip(list_a, list_b):
-                if not np.isclose(a, b, atol=1e-8): return False
+                if not np.isclose(a, b, atol=tolerance): return False
         return True
     except:
         return False
@@ -275,6 +269,7 @@ def validate_step(line_prev_str, line_curr_str):
         if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
         if set_B is None: return False, "Could not parse Line B", "", debug_info
 
+        # 1. STRICT CHECK (Exact Match)
         if set_A == set_B: return True, "Valid", "", debug_info
         try:
             list_A = sorted([str(s) for s in set_A])
@@ -283,8 +278,13 @@ def validate_step(line_prev_str, line_curr_str):
                  return True, "Valid", "", debug_info
         except: pass
         
-        if check_numerical_equivalence(set_A, set_B):
+        # 2. NUMERICAL CHECK (Strict 1e-8)
+        if check_numerical_equivalence(set_A, set_B, tolerance=1e-8):
              return True, "Valid", "", debug_info
+        
+        # 3. ROUNDING CHECK (Lenient 0.01) - NEW FEATURE
+        if check_numerical_equivalence(set_A, set_B, tolerance=0.01):
+             return True, "Valid (Rounded)", "Approximation accepted.", debug_info
 
         return False, "Invalid", "Values do not match.", debug_info
 
@@ -312,7 +312,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v9.2", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v9.3", page_icon="🧪")
 
 st.markdown("""
 <style>
@@ -486,11 +486,14 @@ with c_check:
         if is_valid:
             st.session_state.step_verified = True 
             st.balloons()
-            st.markdown(f"<div class='success-box'><b>✅ Perfect Logic!</b></div>", unsafe_allow_html=True)
+            if status == "Valid (Rounded)":
+                st.markdown(f"<div class='success-box'><b>✅ Correct!</b> <small>(Rounded)</small></div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='success-box'><b>✅ Perfect Logic!</b></div>", unsafe_allow_html=True)
         else:
             st.session_state.step_verified = False
             st.error("❌ Logic Break")
-            # KEEP X-RAY FOR SAFETY
+            # X-RAY (KEEP FOR TESTING)
             st.markdown("#### 🛠️ X-Ray Debugger:")
             st.code(f"I calculated Set A as: {debug_data.get('Set A')}")
             st.code(f"I calculated Set B as: {debug_data.get('Set B')}")
