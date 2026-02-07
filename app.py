@@ -40,25 +40,19 @@ st.markdown("""
     }
 
     /* 3. VISUAL HIERARCHY FOR INPUTS */
-    /* Target the FIRST text input (Previous Line) - Reference Style */
     div[data-testid="stVerticalBlock"] > div:nth-of-type(1) div[data-testid="stTextInput"] input {
         background-color: #f8f9fa;
         border: 2px solid #e9ecef;
         color: #495057;
     }
-    
-    /* Target the SECOND text input (Current Line) - Active Style */
-    /* Note: Streamlit structure varies, this targets the generic input class to ensure visibility */
     div[data-testid="stTextInput"] input {
         font-size: 18px;
         padding: 10px;
         border-radius: 8px;
     }
-    
-    /* Force the "Current Line" to pop (using focus-within simulation) */
     div[data-testid="stVerticalBlock"] > div:nth-of-type(2) div[data-testid="stTextInput"] input {
         background-color: #ffffff;
-        border: 2px solid #4dabf7; /* Active Blue Border */
+        border: 2px solid #4dabf7;
         box-shadow: 0 0 8px rgba(77, 171, 247, 0.2);
     }
 
@@ -89,7 +83,7 @@ if 'step_verified' not in st.session_state: st.session_state.step_verified = Fal
 if 'last_image_bytes' not in st.session_state: st.session_state.last_image_bytes = None
 if 'original_solution_set' not in st.session_state: st.session_state.original_solution_set = None
 
-# --- CORE LOGIC (v12.3 ENGINE) ---
+# --- CORE LOGIC ---
 def clear_all():
     st.session_state.line_prev = ""
     st.session_state.line_curr = ""
@@ -126,7 +120,7 @@ def parse_for_logic(text):
         else: return parse_expr(text, transformations=transformations, evaluate=True, local_dict=logic_dict)
     except: return sympy.sympify(text, evaluate=True)
 
-# (Helpers)
+# Stats Helpers
 def sanitize_args(args):
     data = []
     for a in args:
@@ -269,9 +263,8 @@ def plot_system_interactive(text_str):
         clean = clean_input(text_str)
         equations = []
         if ";" in clean: raw_eqs = clean.split(";")
-        else:
-            if clean.count("=") > 1 and "," in clean: raw_eqs = clean.split(",")
-            else: raw_eqs = [clean]
+        elif clean.count("=") > 1 and "," in clean: raw_eqs = clean.split(",")
+        else: raw_eqs = [clean]
         for r in raw_eqs:
             if r.strip(): equations.append(parse_for_logic(r))
         fig = go.Figure()
@@ -337,31 +330,31 @@ with st.expander("⌨️ Keypad", expanded=True):
     
     with t1:
         c1, c2, c3, c4 = st.columns(4)
-        c1.button("x²", on_click=add_to_input, args=("^2",)); c2.button("√", on_click=add_to_input, args=("sqrt(",)); 
-        c3.button("(", on_click=add_to_input, args=("(",)); c4.button(")", on_click=add_to_input, args=(")",))
-        c1.button("x", on_click=add_to_input, args=("x",)); c2.button("÷", on_click=add_to_input, args=("/",)); 
-        c3.button("+", on_click=add_to_input, args=("+",)); c4.button("-", on_click=add_to_input, args=("-",))
+        c1.button("x²", on_click=add_to_input, args=("^2",), key="alg_sq"); c2.button("√", on_click=add_to_input, args=("sqrt(",), key="alg_sqrt"); 
+        c3.button("(", on_click=add_to_input, args=("(",), key="alg_oparen"); c4.button(")", on_click=add_to_input, args=(")",), key="alg_cparen")
+        c1.button("x", on_click=add_to_input, args=("x",), key="alg_x"); c2.button("÷", on_click=add_to_input, args=("/",), key="alg_div"); 
+        c3.button("+", on_click=add_to_input, args=("+",), key="alg_plus"); c4.button("-", on_click=add_to_input, args=("-",), key="alg_minus")
         
     with t2:
         c1, c2, c3, c4 = st.columns(4)
-        c1.button("d/dx", on_click=add_to_input, args=("diff(",)); c2.button("∫", on_click=add_to_input, args=("integrate(",))
-        c3.button("lim", on_click=add_to_input, args=("limit(",)); c4.button("∞", on_click=add_to_input, args=("oo",))
-        c1.button(",", on_click=add_to_input, args=(", ",)); c2.button("dx", on_click=add_to_input, args=(", x",))
+        c1.button("d/dx", on_click=add_to_input, args=("diff(",), key="calc_diff"); c2.button("∫", on_click=add_to_input, args=("integrate(",), key="calc_int")
+        c3.button("lim", on_click=add_to_input, args=("limit(",), key="calc_lim"); c4.button("∞", on_click=add_to_input, args=("oo",), key="calc_inf")
+        c1.button(",", on_click=add_to_input, args=(", ",), key="calc_comma"); c2.button("dx", on_click=add_to_input, args=(", x",), key="calc_dx")
 
     with t3:
         c1, c2, c3, c4 = st.columns(4)
-        c1.button("Mean", on_click=add_to_input, args=("mean(",)); c2.button("Med", on_click=add_to_input, args=("median(",))
-        c3.button("Std", on_click=add_to_input, args=("stdev(",)); c4.button(",", on_click=add_to_input, args=(", ",))
+        c1.button("Mean", on_click=add_to_input, args=("mean(",), key="stat_mean"); c2.button("Med", on_click=add_to_input, args=("median(",), key="stat_med")
+        c3.button("Std", on_click=add_to_input, args=("stdev(",), key="stat_std"); c4.button(",", on_click=add_to_input, args=(", ",), key="stat_comma")
 
     with t4:
         c1, c2, c3, c4 = st.columns(4)
-        c1.button("Mat", on_click=add_to_input, args=("Matrix([",)); c2.button("[ ]", on_click=add_to_input, args=("[",))
-        c3.button("]", on_click=add_to_input, args=("])",)); c4.button("!", on_click=add_to_input, args=("factorial(",))
+        c1.button("Mat", on_click=add_to_input, args=("Matrix([",), key="mat_m"); c2.button("[ ]", on_click=add_to_input, args=("[",), key="mat_b")
+        c3.button("]", on_click=add_to_input, args=("])",), key="mat_e"); c4.button("!", on_click=add_to_input, args=("factorial(",), key="mat_fact")
 
 # --- ACTIONS ---
 c_chk, c_nxt = st.columns([1, 1])
 with c_chk:
-    if st.button("Check Logic", type="primary"):
+    if st.button("Check Logic", type="primary", key="btn_check"):
         res, status, hint, _ = validate_step(st.session_state.line_prev, st.session_state.line_curr)
         if res:
             st.session_state.step_verified = True
@@ -374,7 +367,7 @@ with c_chk:
             if hint: st.markdown(f"<div class='hint-box'><b>💡 {hint}</b></div>", unsafe_allow_html=True)
 
 with c_nxt:
-    if st.session_state.step_verified: st.button("⬇️ Next Step", on_click=next_step)
+    if st.session_state.step_verified: st.button("⬇️ Next Step", on_click=next_step, key="btn_next")
 
 # --- SIDEBAR & CAM ---
 with st.sidebar:
@@ -382,10 +375,7 @@ with st.sidebar:
     if st.toggle("📷 Camera"):
         if "mathpix_app_id" in st.secrets:
             img_file = st.camera_input("Scan Math")
-            if img_file:
-                # Basic OCR logic
-                pass
-        else:
-            st.warning("Needs API Keys")
+            if img_file: pass
+        else: st.warning("Needs API Keys")
     st.markdown("---")
     st.toggle("Parent Mode")
