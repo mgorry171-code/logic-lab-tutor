@@ -14,36 +14,50 @@ import statistics
 # --- CONFIG ---
 st.set_page_config(page_title="The Logic Lab", page_icon="🧪", layout="centered")
 
-# --- CUSTOM CSS (THE NUCLEAR OPTION) ---
+# --- CUSTOM CSS (THE BLACKBOARD THEME) ---
 st.markdown("""
 <style>
     /* 1. GENERAL FONT */
     html, body, [class*="css"] { font-family: 'Segoe UI', Roboto, sans-serif; }
     
-    /* 2. BUTTONS - FORCE BLACK TEXT ON EVERYTHING */
+    /* 2. THE BLACKBOARD BUTTONS (High Contrast) */
     div.stButton > button {
         width: 100%; height: 50px; 
-        border-radius: 12px; border: 1px solid #dfe1e5;
-        background-color: #f8f9fa !important; 
-        transition: all 0.2s;
-    }
-
-    /* THE FIX: Target the button AND every single element inside it (*) */
-    div.stButton > button, 
-    div.stButton > button * {
-        color: #000000 !important; /* Force Black */
+        border-radius: 10px; 
+        border: 1px solid #4a4a4a;
+        
+        /* THE FIX: Dark Background, Bright White Text */
+        background-color: #262730 !important; 
+        color: #ffffff !important;
+        
         font-size: 22px !important; 
-        font-weight: 700 !important; /* Bold */
-        opacity: 1 !important;
-        fill: #000000 !important; /* Fix for SVG icons if Streamlit uses them */
+        font-weight: 700 !important;
+        transition: all 0.1s;
     }
 
-    div.stButton > button:active { background-color: #e2e6ea !important; transform: scale(0.98); }
+    /* Force internal text elements (p tags) to be White */
+    div.stButton > button p {
+        color: #ffffff !important;
+    }
+
+    /* Hover Effect */
+    div.stButton > button:hover {
+        border-color: #4dabf7;
+        color: #4dabf7 !important;
+    }
+    div.stButton > button:hover p {
+        color: #4dabf7 !important;
+    }
+
+    div.stButton > button:active { 
+        background-color: #000000 !important; 
+        transform: scale(0.98); 
+    }
 
     /* 3. STOP COLUMNS FROM STACKING ON MOBILE */
     [data-testid="column"] { min-width: 1px !important; }
 
-    /* 4. INPUT BOX STYLING */
+    /* 4. INPUT BOX STYLING (Gray vs White) */
     [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input {
         background-color: #f1f3f4 !important; 
         color: #202124 !important; 
