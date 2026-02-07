@@ -14,36 +14,46 @@ import statistics
 # --- CONFIG ---
 st.set_page_config(page_title="The Logic Lab", page_icon="🧪", layout="centered")
 
-# --- CUSTOM CSS (MOBILE GRID FIX) ---
+# --- CUSTOM CSS (GHOSTBUSTER EDITION) ---
 st.markdown("""
 <style>
     /* 1. GENERAL FONT */
     html, body, [class*="css"] { font-family: 'Segoe UI', Roboto, sans-serif; }
     
-    /* 2. BUTTONS (Mobile Friendly) */
+    /* 2. BUTTONS - FORCE VISIBILITY OF SYMBOLS */
     div.stButton > button {
-        width: 100%; height: 50px; font-size: 20px !important; font-weight: 600;
+        width: 100%; height: 50px; font-size: 22px !important; font-weight: 600;
         border-radius: 12px; border: 1px solid #dfe1e5;
-        background-color: #f8f9fa !important; color: #000000 !important;
+        background-color: #f8f9fa !important; 
+        color: #000000 !important;
         transition: all 0.2s;
+    }
+    /* TARGET INTERNAL TEXT (p tags) TO FIX INVISIBLE + - */
+    div.stButton > button p {
+        font-size: 22px !important;
+        color: #000000 !important;
     }
     div.stButton > button:active { background-color: #e2e6ea !important; transform: scale(0.98); }
 
-    /* 3. STOP COLUMNS FROM STACKING ON MOBILE (The Keypad Fix) */
-    [data-testid="column"] {
-        min-width: 1px !important; /* Tricks Streamlit into thinking 4 cols fit on ANY screen */
-    }
+    /* 3. STOP COLUMNS FROM STACKING ON MOBILE */
+    [data-testid="column"] { min-width: 1px !important; }
 
-    /* 4. INPUT BOX STYLING */
+    /* 4. INPUT BOX STYLING (Gray vs White) */
+    /* Target Previous Line Container */
     [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input {
-        background-color: #f1f3f4 !important; color: #5f6368 !important; border: 1px solid #dadce0 !important;
+        background-color: #f1f3f4 !important; 
+        color: #202124 !important; 
+        border: 1px solid #dadce0 !important;
     }
+    /* Target Current Line Container */
     [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Current Line"]) input {
-        background-color: #ffffff !important; border: 2px solid #1a73e8 !important; box-shadow: 0 1px 6px rgba(32,33,36,0.12);
+        background-color: #ffffff !important; 
+        color: #000000 !important;
+        border: 2px solid #1a73e8 !important; 
+        box-shadow: 0 1px 6px rgba(32,33,36,0.12);
     }
 
-    /* 5. BOXES */
-    .workspace-box { padding: 20px; border-radius: 15px; background: white; border: 1px solid #e0e0e0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    /* 5. FEEDBACK BOXES */
     .success-box { padding: 15px; background: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; margin-top: 10px; }
     .warning-box { padding: 15px; background: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; margin-top: 10px; }
     .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; margin-top: 10px; }
@@ -275,8 +285,8 @@ with col_head2:
 
 if st.session_state.original_solution_set: st.markdown("<div style='background:#e3f2fd;padding:8px;border-radius:5px;font-size:14px;color:#0d47a1;margin-bottom:15px'>🧠 Memory Active: Tracking Original Equation</div>", unsafe_allow_html=True)
 
-st.markdown('<div class="workspace-box">', unsafe_allow_html=True)
 st.caption("PREVIOUS STEP (Problem)")
+# --- LABELED INPUTS FOR CSS TARGETING ---
 st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="Enter Step 1...", help="Previous Line")
 if st.session_state.line_prev: 
     st.latex(pretty_print(st.session_state.line_prev))
@@ -288,7 +298,6 @@ st.markdown("---")
 st.caption("CURRENT STEP (Your Work)")
 st.text_input("Line B", key="line_curr", label_visibility="collapsed", placeholder="Enter Step 2...", help="Current Line")
 if st.session_state.line_curr: st.latex(pretty_print(st.session_state.line_curr))
-st.markdown('</div>', unsafe_allow_html=True)
 
 with st.expander("⌨️ Keypad", expanded=True):
     st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
