@@ -112,7 +112,6 @@ def get_solution_set(text_str):
         # 1. Handle explicit lists "2, -1" or "x=2, -1" or "x=2, x=-1"
         if "," in clean:
             if "=" in clean:
-                # Try splitting by comma first to handle "x=2, x=-1"
                 parts = clean.split(",")
                 vals = []
                 for p in parts:
@@ -120,7 +119,6 @@ def get_solution_set(text_str):
                     else: vals.append(parse_for_logic(p.strip()))
                 return FiniteSet(*vals)
             else:
-                # Just numbers "2, -1"
                 return FiniteSet(*[parse_for_logic(i.strip()) for i in clean.split(",") if i.strip()])
 
         # 2. Handle Plus/Minus "±"
@@ -128,13 +126,20 @@ def get_solution_set(text_str):
             val = parse_for_logic(clean.split("±")[1].strip())
             return FiniteSet(val, -val)
 
-        # 3. Standard Solve
+        # 3. Standard Solve with UNWRAPPER
         expr = parse_for_logic(clean)
         all_symbols = list(expr.free_symbols)
         if not all_symbols: return FiniteSet(expr)
         
         sol = solve(expr, all_symbols, set=True)
-        return FiniteSet(*sol[1]) if isinstance(sol, tuple) else sol
+        # FIX: The "Unwrapper" - flattens tuples like (2,) into just 2
+        flat_results = []
+        if isinstance(sol, tuple):
+            for s in sol[1]:
+                if isinstance(s, tuple) and len(s) == 1: flat_results.append(s[0])
+                else: flat_results.append(s)
+            return FiniteSet(*flat_results)
+        return sol
     except: return None
 
 def validate_step(line_a, line_b):
@@ -142,11 +147,10 @@ def validate_step(line_a, line_b):
         set_A = get_solution_set(line_a)
         set_B = get_solution_set(line_b)
         
-        st.session_state.debug_log = {"Set A": str(set_A), "Set B": str(set_B)} # Log for debugging
+        st.session_state.debug_log = {"Set A": str(set_A), "Set B": str(set_B)}
         
         if st.session_state.original_solution_set is None: st.session_state.original_solution_set = set_A
         
-        # Check for Final Answer status
         clean_b = clean_input(line_b)
         is_final = False
         if not any(c in clean_b for c in "+*^") and not clean_b.startswith("matrix"):
@@ -154,10 +158,8 @@ def validate_step(line_a, line_b):
 
         if set_A == set_B: return True, ("Final" if is_final else "Valid"), ""
         
-        # Extraneous Solution Logic: If A is a subset of B (meaning B has extras), it's a Warning
         if set_A and set_B and set_A.issubset(set_B):
             if is_final:
-                # If we have extraneous roots, show warning
                 return True, "Warning", "Wait! You found two potential solutions. Check BOTH in the **original** equation."
             return True, "Valid", ""
             
@@ -238,4 +240,4 @@ if st.session_state.high_scores:
 with st.expander("🛠️ Debug Details"):
     st.write(st.session_state.debug_log)
     
-st.markdown("<div class='footer-note'>Built for NYC Math Teachers • The Logic Lab v15.2</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer-note'>Built for NYC Math Teachers • The Logic Lab v15.3</div>", uns
