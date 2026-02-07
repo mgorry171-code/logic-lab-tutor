@@ -1,3 +1,31 @@
+You have encountered the "Syntax Strictness" of the get_solution_set function.
+
+The Issue:
+
+What you typed: t = 2, -2 (or t = 2 and -2).
+
+What the Computer Saw: "This looks like an equation because of the = sign... but it also looks like a list because of the comma... I am confused." 🤯
+
+The Result: It crashed (None) because it tried to solve t = (2, -2) as a single math statement instead of realizing you were just listing the answers for t.
+
+The Fix (v9.7): The "Answer Key" Update I am teaching the brain to recognize "Variable Assignment Lists." If it sees something like letter = number, number, it will now:
+
+Ignore the letter (it knows you are just labeling the answer).
+
+Read the numbers after the = as a list.
+
+Check if those numbers match the solution.
+
+I also added or to the cleanup list, so if a student types t = 2 or -2, it treats it just like and.
+
+Action: Update app.py to v9.7
+Edit app.py in GitHub.
+
+Delete All and paste this code.
+
+Commit and Refresh.
+
+Python
 import streamlit as st
 import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral, ImmutableDenseMatrix
@@ -49,7 +77,11 @@ def clean_input(text):
     text = text.replace("\\", "")
     text = text.replace("`", "")
     text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
+    
+    # SMARTER CONNECTIVES
     text = text.replace(" and ", ",") 
+    text = text.replace(" or ", ",")  # Added OR support
+    
     text = text.replace("^", "**")
     text = re.sub(r'(?<![a-z])i(?![a-z])', 'I', text) 
     text = text.replace("+/-", "±")
@@ -190,7 +222,6 @@ def flatten_set(s):
     return sympy.FiniteSet(*flat_items)
 
 def get_solution_set(text_str):
-    # REMOVED: x, y = symbols('x y') -- We now detect variables dynamically!
     clean = clean_input(text_str)
     try:
         # 1. Parse using the Active Brain
@@ -199,6 +230,19 @@ def get_solution_set(text_str):
             val = parse_for_logic(parts[1].strip())
             return flatten_set(sympy.FiniteSet(val, -val))
         
+        # --- NEW: Handle "t = 2, -2" (Answer Assignment List) ---
+        # If there is exactly one "=" and commas, but NO parentheses (not a function call)
+        elif clean.count("=") == 1 and "," in clean and "(" not in clean:
+             # Discard LHS (t=), keep RHS (2, -2)
+             rhs = clean.split("=")[1]
+             items = rhs.split(",")
+             vals = []
+             for i in items:
+                if i.strip(): vals.append(parse_for_logic(i.strip()))
+             return flatten_set(sympy.FiniteSet(*vals))
+        # --------------------------------------------------------
+        
+        # Standard List (2, -2)
         elif "," in clean and "=" not in clean and "(" not in clean:
             items = clean.split(",")
             vals = []
@@ -219,12 +263,9 @@ def get_solution_set(text_str):
              equations.append(parse_for_logic(clean))
 
         # 2. Solver Logic (Dynamic Variable Detection)
-        # Find all symbols in the equation (e.g., t, z, apple)
         all_symbols = set()
         for eq in equations:
             all_symbols.update(eq.free_symbols)
-        
-        # Convert set to list for solving
         solve_vars = list(all_symbols)
 
         if len(equations) > 1:
@@ -240,14 +281,13 @@ def get_solution_set(text_str):
                 return flatten_set(sympy.FiniteSet(expr))
             
             if isinstance(expr, Eq) or not (expr.is_Relational):
-                 # Auto-detect what to solve for
                  if not solve_vars: return flatten_set(sympy.FiniteSet(expr))
                  sol = solve(expr, solve_vars, set=True)
                  return flatten_set(sol[1])
             else:
                 try:
                     if not solve_vars: return flatten_set(sympy.FiniteSet(expr))
-                    sol = solve(expr, solve_vars[0], set=True) # Inequalities usually take 1 var
+                    sol = solve(expr, solve_vars[0], set=True)
                     return flatten_set(sol[1])
                 except:
                     return flatten_set(sympy.FiniteSet(expr))
@@ -262,13 +302,10 @@ def check_numerical_equivalence(set_a, set_b, tolerance=1e-8):
         
         if len(list_a) != len(list_b): return False
         
-        # Check if items are Matrices
         if list_a and (isinstance(list_a[0], ImmutableDenseMatrix) or isinstance(list_b[0], ImmutableDenseMatrix)):
             mat_a = list_a[0]
             mat_b = list_b[0]
-            # 1. Exact Match
             if mat_a == mat_b: return True
-            # 2. Transpose Match (Forgiving Mode)
             if mat_a == mat_b.T: return True
             return False
 
@@ -340,7 +377,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v9.6", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v9.7", page_icon="🧪")
 
 st.markdown("""
 <style>
