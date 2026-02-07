@@ -24,12 +24,15 @@ if 'step_verified' not in st.session_state:
     st.session_state.step_verified = False
 if 'last_image_bytes' not in st.session_state:
     st.session_state.last_image_bytes = None
+if 'original_solution_set' not in st.session_state:
+    st.session_state.original_solution_set = None
 
 # --- HELPER FUNCTIONS ---
 def clear_all():
     st.session_state.line_prev = ""
     st.session_state.line_curr = ""
     st.session_state.step_verified = False
+    st.session_state.original_solution_set = None
 
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
@@ -276,18 +279,13 @@ def check_common_errors(text_a, text_b):
     try:
         clean_a = clean_input(text_a)
         clean_b = clean_input(text_b)
-        
-        # 1. Inequality Sign Error
         if ("<" in clean_a or ">" in clean_a) and ("-" in clean_a):
             if "<" in clean_a and "<" in clean_b:
                 hint = "⚠️ Trap Detected: Did you divide by a negative? Remember to flip the sign!"
             elif ">" in clean_a and ">" in clean_b:
                 hint = "⚠️ Trap Detected: Did you divide by a negative? Remember to flip the sign!"
-
-        # 2. Distribution Error
         if "(" in clean_a and ")" in clean_a and "(" not in clean_b:
              hint = "⚠️ Check Distribution: Did you multiply the term outside to EVERY term inside?"
-
     except:
         pass
     return hint
@@ -299,31 +297,37 @@ def validate_step(line_prev_str, line_curr_str):
         set_A = get_solution_set(line_prev_str)
         set_B = get_solution_set(line_curr_str)
         
+        # --- GLOBAL MEMORY LOGIC ---
+        if st.session_state.original_solution_set is None and set_A is not None:
+            st.session_state.original_solution_set = set_A
+        
+        is_final_answer = False
+        if "=" in line_curr_str:
+            rhs = line_curr_str.split("=")[1].strip()
+            if not any(c.isalpha() for c in rhs): is_final_answer = True
+        elif not any(c in line_curr_str for c in "+-*/^"): 
+            is_final_answer = True
+
         if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
         if set_B is None: return False, "Could not parse Line B", "", debug_info
 
         # 1. Exact Match
         if set_A == set_B: return True, "Valid", "", debug_info
         
-        # 2. Subset Check (EXTRANEOUS SOLUTION DETECTION - Level 3)
-        # If Set A is smaller than Set B, and inside Set B -> You added an extraneous solution
+        # 2. Subset Check (Extraneous Detection)
         if set_A.issubset(set_B) and set_A != set_B:
-             # This is "Valid Algebra" but "Invalid Logic" for final answer.
-             # We give it a conditional pass (Warning)
-             return True, "Valid (Warning)", "⚠️ You created an extraneous solution. Don't forget to check your roots!", debug_info
-
-        # 3. Numerical Match
-        if check_numerical_equivalence(set_A, set_B, tolerance=1e-8):
+             if is_final_answer and st.session_state.original_solution_set is not None:
+                 if st.session_state.original_solution_set != set_B:
+                     return True, "Valid (Warning)", "Wait! You found two potential solutions. Check BOTH in the **original** equation.", debug_info
              return True, "Valid", "", debug_info
-        
-        # 4. Rounding Match
-        if check_numerical_equivalence(set_A, set_B, tolerance=0.01):
-             return True, "Valid (Rounded)", "Approximation accepted.", debug_info
 
-        # 5. Trap Detection
+        # 3. Numerical & Rounding
+        if check_numerical_equivalence(set_A, set_B, tolerance=1e-8): return True, "Valid", "", debug_info
+        if check_numerical_equivalence(set_A, set_B, tolerance=0.01): return True, "Valid (Rounded)", "Approximation accepted.", debug_info
+
+        # 4. Traps
         trap_hint = check_common_errors(line_prev_str, line_curr_str)
-        if trap_hint:
-             return False, "Invalid", trap_hint, debug_info
+        if trap_hint: return False, "Invalid", trap_hint, debug_info
 
         return False, "Invalid", "Values do not match.", debug_info
 
@@ -351,7 +355,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE (POLISHED) ---
 
-st.set_page_config(page_title="The Logic Lab v11.0", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v12.1", page_icon="🧪")
 
 st.markdown("""
 <style>
@@ -364,16 +368,26 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🧪 The Logic Lab")
+# --- TOP BAR ---
+col_title, col_reset = st.columns([3, 1])
+with col_title:
+    st.title("🧪 The Logic Lab")
+with col_reset:
+    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True) # Spacer
+    if st.button("✨ New Problem", type="primary"):
+        clear_all()
+        st.rerun()
+
+# --- MEMORY INDICATOR ---
+if st.session_state.original_solution_set is not None:
+    st.info("🧠 Memory Active: Tracking Original Equation for Extraneous Solutions.")
 
 with st.sidebar:
     st.header("Settings")
-    if st.button("🗑️ Reset All Inputs"):
+    if st.button("🗑️ Reset All Inputs"): # Keep this as fallback
         clear_all()
         st.rerun()
-    
     st.markdown("---")
-    
     mp_id = None
     mp_key = None
     if "mathpix_app_id" in st.secrets and "mathpix_app_key" in st.secrets:
@@ -384,13 +398,8 @@ with st.sidebar:
         st.subheader("📷 Camera Keys")
         mp_id = st.text_input("App ID", type="password")
         mp_key = st.text_input("App Key", type="password")
-
     st.markdown("---")
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode", value=False)
-    
-    if st.session_state.history:
-        st.markdown("---")
-        st.write(f"**Session Stats:** {len(st.session_state.history)} steps checked.")
 
 # --- CAMERA INPUT ---
 with st.expander("📷 Scan Handwritten Math", expanded=False):
@@ -411,7 +420,7 @@ with st.expander("📷 Scan Handwritten Math", expanded=False):
                             st.session_state.line_prev = clean_input(extracted_text)
                             st.rerun()
                     else:
-                        st.warning("⚠️ Simulation Mode (No API Keys)")
+                        st.warning("⚠️ Simulation Mode")
                         st.session_state.line_prev = "sqrt(x+2) = x"
                         st.rerun()
 
@@ -421,24 +430,18 @@ col1, col2 = st.columns(2)
 with col1:
     st.markdown("### Previous Line")
     st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="e.g. sqrt(x+2) = x")
-    
     if st.session_state.line_prev:
         latex_str = pretty_print(st.session_state.line_prev)
         if latex_str: st.latex(latex_str)
-        
         if parent_mode:
             if st.button("👁️ Reveal Answer"):
                 sol_set = get_solution_set(st.session_state.line_prev)
                 if sol_set:
                     st.success("**Key:**")
                     st.latex(latex(sol_set))
-                else:
-                    st.error("Could not solve.")
-        
         if st.checkbox("📈 Graph"):
             fig, table_list = plot_system_interactive(st.session_state.line_prev)
-            if fig:
-                st.plotly_chart(fig, use_container_width=True)
+            if fig: st.plotly_chart(fig, use_container_width=True)
 
 with col2:
     st.markdown("### Current Line")
@@ -452,9 +455,7 @@ st.markdown("---")
 # --- EXPANDED KEYPAD ---
 with st.expander("⌨️ Show Keypad", expanded=False):
     st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
-    
     tab1, tab2, tab3, tab4 = st.tabs(["Algebra", "Calculus", "Statistics", "Pre-Calc"])
-    
     with tab1: 
         b1, b2, b3, b4, b5, b6 = st.columns(6)
         b1.button("x²", on_click=add_to_input, args=("^2",))
@@ -470,7 +471,6 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b4.button("log", on_click=add_to_input, args=("log(",))
         b5.button("sin", on_click=add_to_input, args=("sin(",))
         b6.button("cos", on_click=add_to_input, args=("cos(",))
-
     with tab2: 
         b1, b2, b3, b4, b5, b6 = st.columns(6)
         b1.button("d/dx", on_click=add_to_input, args=("diff(",))
@@ -479,7 +479,6 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b4.button("∞", on_click=add_to_input, args=("oo",))
         b5.button(",", on_click=add_to_input, args=(", ",), key="calc_comma") 
         b6.button("dx", on_click=add_to_input, args=(", x",))
-
     with tab3: 
         b1, b2, b3, b4, b5, b6 = st.columns(6)
         b1.button("Mean", on_click=add_to_input, args=("mean(",))
@@ -488,7 +487,6 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b4.button(",", on_click=add_to_input, args=(", ",), key="stats_comma") 
         b5.button("Mode", disabled=True) 
         b6.button("Norm", disabled=True) 
-
     with tab4: 
         b1, b2, b3, b4, b5, b6 = st.columns(6)
         b1.button("Matrix", on_click=add_to_input, args=("Matrix([",))
@@ -507,19 +505,17 @@ with c_check:
         line_a = st.session_state.line_prev
         line_b = st.session_state.line_curr
         is_valid, status, hint, debug_data = validate_step(line_a, line_b)
-        
         now = datetime.datetime.now().strftime("%H:%M:%S")
         st.session_state.history.append({"Time": now, "Input A": line_a, "Input B": line_b, "Result": status})
         
         if is_valid:
             st.session_state.step_verified = True 
+            st.balloons()
             if "Warning" in status:
                 st.markdown(f"<div class='warning-box'><b>⚠️ Valid Step, but...</b><br><small>{hint}</small></div>", unsafe_allow_html=True)
             elif "Rounded" in status:
-                st.balloons()
                 st.markdown(f"<div class='success-box'><b>✅ Correct!</b><br><small>(Approximation Accepted)</small></div>", unsafe_allow_html=True)
             else:
-                st.balloons()
                 st.markdown(f"<div class='success-box'><b>✅ Perfect Logic!</b></div>", unsafe_allow_html=True)
         else:
             st.session_state.step_verified = False
