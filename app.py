@@ -11,70 +11,47 @@ import requests
 import base64
 import statistics
 
-# --- CONFIG MUST BE FIRST ---
+# --- CONFIG ---
 st.set_page_config(page_title="The Logic Lab", page_icon="🧪", layout="centered")
 
-# --- CUSTOM CSS (THE VISUAL HIERARCHY) ---
+# --- CUSTOM CSS (MOBILE GRID FIX) ---
 st.markdown("""
 <style>
-    /* 1. FORCE FONT & COLORS */
-    html, body, [class*="css"] {
-        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    }
+    /* 1. GENERAL FONT */
+    html, body, [class*="css"] { font-family: 'Segoe UI', Roboto, sans-serif; }
     
-    /* 2. THUMB-FRIENDLY BUTTONS (High Contrast) */
+    /* 2. BUTTONS (Mobile Friendly) */
     div.stButton > button {
-        width: 100%;
-        height: 50px;
-        font-size: 20px !important;
-        font-weight: 600;
-        border-radius: 12px;
-        border: 1px solid #dfe1e5;
-        background-color: #f8f9fa !important; 
-        color: #000000 !important;          
+        width: 100%; height: 50px; font-size: 20px !important; font-weight: 600;
+        border-radius: 12px; border: 1px solid #dfe1e5;
+        background-color: #f8f9fa !important; color: #000000 !important;
         transition: all 0.2s;
     }
-    div.stButton > button:active {
-        background-color: #e2e6ea !important;
-        transform: scale(0.98);
+    div.stButton > button:active { background-color: #e2e6ea !important; transform: scale(0.98); }
+
+    /* 3. STOP COLUMNS FROM STACKING ON MOBILE (The Keypad Fix) */
+    [data-testid="column"] {
+        min-width: 1px !important; /* Tricks Streamlit into thinking 4 cols fit on ANY screen */
     }
 
-    /* 3. VISUAL HIERARCHY FOR INPUTS */
-    div[data-testid="stVerticalBlock"] > div:nth-of-type(1) div[data-testid="stTextInput"] input {
-        background-color: #f8f9fa;
-        border: 2px solid #e9ecef;
-        color: #495057;
+    /* 4. INPUT BOX STYLING */
+    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input {
+        background-color: #f1f3f4 !important; color: #5f6368 !important; border: 1px solid #dadce0 !important;
     }
-    div[data-testid="stTextInput"] input {
-        font-size: 18px;
-        padding: 10px;
-        border-radius: 8px;
-    }
-    div[data-testid="stVerticalBlock"] > div:nth-of-type(2) div[data-testid="stTextInput"] input {
-        background-color: #ffffff;
-        border: 2px solid #4dabf7;
-        box-shadow: 0 0 8px rgba(77, 171, 247, 0.2);
+    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Current Line"]) input {
+        background-color: #ffffff !important; border: 2px solid #1a73e8 !important; box-shadow: 0 1px 6px rgba(32,33,36,0.12);
     }
 
-    /* 4. FEEDBACK BOXES */
-    .success-box { padding: 15px; background-color: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; margin-top: 10px;}
-    .warning-box { padding: 15px; background-color: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; margin-top: 10px;}
-    .error-box { padding: 15px; background-color: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; margin-top: 10px;}
-    .hint-box { margin-top: 10px; padding: 10px; background-color: #e2e3e5; color: #41464b; border-radius: 5px; border-left: 5px solid #0d6efd; font-size: 15px; }
-
-    /* 5. WORKSPACE CONTAINER */
-    .workspace-box {
-        padding: 20px;
-        border-radius: 15px;
-        background-color: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        border: 1px solid #e0e0e0;
-        margin-bottom: 20px;
-    }
+    /* 5. BOXES */
+    .workspace-box { padding: 20px; border-radius: 15px; background: white; border: 1px solid #e0e0e0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .success-box { padding: 15px; background: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; margin-top: 10px; }
+    .warning-box { padding: 15px; background: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; margin-top: 10px; }
+    .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; margin-top: 10px; }
+    .hint-box { margin-top: 10px; padding: 10px; background: #e2e3e5; color: #41464b; border-radius: 5px; border-left: 5px solid #0d6efd; font-size: 15px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- SETUP SESSION STATE ---
+# --- STATE ---
 if 'line_prev' not in st.session_state: st.session_state.line_prev = "" 
 if 'line_curr' not in st.session_state: st.session_state.line_curr = ""
 if 'history' not in st.session_state: st.session_state.history = []
@@ -83,7 +60,7 @@ if 'step_verified' not in st.session_state: st.session_state.step_verified = Fal
 if 'last_image_bytes' not in st.session_state: st.session_state.last_image_bytes = None
 if 'original_solution_set' not in st.session_state: st.session_state.original_solution_set = None
 
-# --- CORE LOGIC ---
+# --- LOGIC ---
 def clear_all():
     st.session_state.line_prev = ""
     st.session_state.line_curr = ""
@@ -120,7 +97,7 @@ def parse_for_logic(text):
         else: return parse_expr(text, transformations=transformations, evaluate=True, local_dict=logic_dict)
     except: return sympy.sympify(text, evaluate=True)
 
-# Stats Helpers
+# Stats
 def sanitize_args(args):
     data = []
     for a in args:
@@ -166,7 +143,6 @@ def get_solution_set(text_str):
         else: raw_eqs = [clean]
         for r in raw_eqs:
             if r.strip(): equations.append(parse_for_logic(r))
-        
         all_symbols = set()
         for eq in equations: all_symbols.update(eq.free_symbols)
         solve_vars = list(all_symbols)
@@ -213,12 +189,10 @@ def validate_step(line_prev_str, line_curr_str):
         if not line_prev_str or not line_curr_str: return False, "Empty", "", {}
         set_A, set_B = get_solution_set(line_prev_str), get_solution_set(line_curr_str)
         if st.session_state.original_solution_set is None and set_A is not None: st.session_state.original_solution_set = set_A
-        
         is_final_answer = False
         if "=" in line_curr_str:
             if not any(c.isalpha() for c in line_curr_str.split("=")[1].strip()): is_final_answer = True
         elif not any(c in line_curr_str for c in "+-*/^"): is_final_answer = True
-
         if set_A is None or set_B is None: return False, "Parsing Error", "", debug_info
         if set_A == set_B: 
             return True, ("Final" if is_final_answer else "Valid"), "", debug_info
@@ -270,8 +244,7 @@ def plot_system_interactive(text_str):
         fig = go.Figure()
         x_vals = np.linspace(-10, 10, 100)
         colors = ['blue', 'orange', 'green']
-        i = 0
-        has_plotted = False
+        i = 0; has_plotted = False
         for eq in equations:
             try:
                 if eq.has(I): continue
@@ -281,36 +254,30 @@ def plot_system_interactive(text_str):
                         f_y = sympy.lambdify(x, y_expr[0], "numpy") 
                         y_vals = f_y(x_vals)
                         if np.iscomplexobj(y_vals): y_vals = y_vals.real 
-                        fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name=f"Eq {i+1}", line=dict(color=colors[i % 3])))
-                        has_plotted = True
-                        i += 1
+                        fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name=f"Eq {i+1}", line=dict(color=colors[i % 3]))); has_plotted = True; i += 1
                 elif 'x' in str(eq):
                     x_sol = solve(eq, x)
                     if x_sol:
                         val = float(x_sol[0])
-                        fig.add_vline(x=val, line_dash="dash", line_color=colors[i%3], annotation_text=f"x={val}")
-                        has_plotted = True
-                        i += 1
+                        fig.add_vline(x=val, line_dash="dash", line_color=colors[i%3], annotation_text=f"x={val}"); has_plotted = True; i += 1
             except: pass
         if not has_plotted: return None, None
         fig.update_layout(xaxis=dict(range=[-10, 10], zeroline=True), yaxis=dict(range=[-10, 10], zeroline=True), height=400, margin=dict(l=20, r=20, t=20, b=20))
         return fig, []
     except: return None, None
 
-# --- WEB INTERFACE START ---
+# --- WEB INTERFACE ---
 col_head1, col_head2 = st.columns([3, 1])
 with col_head1: st.title("🧪 The Logic Lab")
 with col_head2: 
     st.markdown("<div style='height:15px'></div>", unsafe_allow_html=True)
     if st.button("✨ New"): clear_all(); st.rerun()
 
-if st.session_state.original_solution_set:
-    st.markdown("<div style='background:#e3f2fd;padding:8px;border-radius:5px;font-size:14px;color:#0d47a1;margin-bottom:15px'>🧠 Memory Active: Tracking Original Equation</div>", unsafe_allow_html=True)
+if st.session_state.original_solution_set: st.markdown("<div style='background:#e3f2fd;padding:8px;border-radius:5px;font-size:14px;color:#0d47a1;margin-bottom:15px'>🧠 Memory Active: Tracking Original Equation</div>", unsafe_allow_html=True)
 
-# --- WORKSPACE ---
 st.markdown('<div class="workspace-box">', unsafe_allow_html=True)
 st.caption("PREVIOUS STEP (Problem)")
-st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="Enter Step 1...")
+st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="Enter Step 1...", help="Previous Line")
 if st.session_state.line_prev: 
     st.latex(pretty_print(st.session_state.line_prev))
     if st.checkbox("Show Graph", key="graph_1"):
@@ -319,39 +286,33 @@ if st.session_state.line_prev:
 
 st.markdown("---")
 st.caption("CURRENT STEP (Your Work)")
-st.text_input("Line B", key="line_curr", label_visibility="collapsed", placeholder="Enter Step 2...")
+st.text_input("Line B", key="line_curr", label_visibility="collapsed", placeholder="Enter Step 2...", help="Current Line")
 if st.session_state.line_curr: st.latex(pretty_print(st.session_state.line_curr))
 st.markdown('</div>', unsafe_allow_html=True)
 
-# --- KEYPAD ---
 with st.expander("⌨️ Keypad", expanded=True):
     st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
     t1, t2, t3, t4 = st.tabs(["Alg", "Calc", "Stat", "Mat"])
-    
     with t1:
         c1, c2, c3, c4 = st.columns(4)
-        c1.button("x²", on_click=add_to_input, args=("^2",), key="alg_sq"); c2.button("√", on_click=add_to_input, args=("sqrt(",), key="alg_sqrt"); 
-        c3.button("(", on_click=add_to_input, args=("(",), key="alg_oparen"); c4.button(")", on_click=add_to_input, args=(")",), key="alg_cparen")
-        c1.button("x", on_click=add_to_input, args=("x",), key="alg_x"); c2.button("÷", on_click=add_to_input, args=("/",), key="alg_div"); 
-        c3.button("+", on_click=add_to_input, args=("+",), key="alg_plus"); c4.button("-", on_click=add_to_input, args=("-",), key="alg_minus")
-        
+        c1.button("x²", on_click=add_to_input, args=("^2",), key="a_sq"); c2.button("√", on_click=add_to_input, args=("sqrt(",), key="a_rt")
+        c3.button("(", on_click=add_to_input, args=("(",), key="a_op"); c4.button(")", on_click=add_to_input, args=(")",), key="a_cp")
+        c1.button("x", on_click=add_to_input, args=("x",), key="a_x"); c2.button("÷", on_click=add_to_input, args=("/",), key="a_d")
+        c3.button("+", on_click=add_to_input, args=("+",), key="a_p"); c4.button("-", on_click=add_to_input, args=("-",), key="a_m")
     with t2:
         c1, c2, c3, c4 = st.columns(4)
-        c1.button("d/dx", on_click=add_to_input, args=("diff(",), key="calc_diff"); c2.button("∫", on_click=add_to_input, args=("integrate(",), key="calc_int")
-        c3.button("lim", on_click=add_to_input, args=("limit(",), key="calc_lim"); c4.button("∞", on_click=add_to_input, args=("oo",), key="calc_inf")
-        c1.button(",", on_click=add_to_input, args=(", ",), key="calc_comma"); c2.button("dx", on_click=add_to_input, args=(", x",), key="calc_dx")
-
+        c1.button("d/dx", on_click=add_to_input, args=("diff(",), key="c_df"); c2.button("∫", on_click=add_to_input, args=("integrate(",), key="c_in")
+        c3.button("lim", on_click=add_to_input, args=("limit(",), key="c_lm"); c4.button("∞", on_click=add_to_input, args=("oo",), key="c_oo")
+        c1.button(",", on_click=add_to_input, args=(", ",), key="c_cm"); c2.button("dx", on_click=add_to_input, args=(", x",), key="c_dx")
     with t3:
         c1, c2, c3, c4 = st.columns(4)
-        c1.button("Mean", on_click=add_to_input, args=("mean(",), key="stat_mean"); c2.button("Med", on_click=add_to_input, args=("median(",), key="stat_med")
-        c3.button("Std", on_click=add_to_input, args=("stdev(",), key="stat_std"); c4.button(",", on_click=add_to_input, args=(", ",), key="stat_comma")
-
+        c1.button("Mean", on_click=add_to_input, args=("mean(",), key="s_mn"); c2.button("Med", on_click=add_to_input, args=("median(",), key="s_md")
+        c3.button("Std", on_click=add_to_input, args=("stdev(",), key="s_sd"); c4.button(",", on_click=add_to_input, args=(", ",), key="s_cm")
     with t4:
         c1, c2, c3, c4 = st.columns(4)
-        c1.button("Mat", on_click=add_to_input, args=("Matrix([",), key="mat_m"); c2.button("[ ]", on_click=add_to_input, args=("[",), key="mat_b")
-        c3.button("]", on_click=add_to_input, args=("])",), key="mat_e"); c4.button("!", on_click=add_to_input, args=("factorial(",), key="mat_fact")
+        c1.button("Mat", on_click=add_to_input, args=("Matrix([",), key="m_mx"); c2.button("[ ]", on_click=add_to_input, args=("[",), key="m_br")
+        c3.button("]", on_click=add_to_input, args=("])",), key="m_cl"); c4.button("!", on_click=add_to_input, args=("factorial(",), key="m_fa")
 
-# --- ACTIONS ---
 c_chk, c_nxt = st.columns([1, 1])
 with c_chk:
     if st.button("Check Logic", type="primary", key="btn_check"):
@@ -365,11 +326,9 @@ with c_chk:
             st.session_state.step_verified = False
             st.markdown("<div class='error-box'><b>❌ Logic Break</b></div>", unsafe_allow_html=True)
             if hint: st.markdown(f"<div class='hint-box'><b>💡 {hint}</b></div>", unsafe_allow_html=True)
-
 with c_nxt:
-    if st.session_state.step_verified: st.button("⬇️ Next Step", on_click=next_step, key="btn_next")
+    if st.session_state.step_verified: st.button("⬇️ Next Step", on_click=next_step, key="btn_nxt")
 
-# --- SIDEBAR & CAM ---
 with st.sidebar:
     st.header("Settings")
     if st.toggle("📷 Camera"):
