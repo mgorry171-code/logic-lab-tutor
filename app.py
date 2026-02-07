@@ -14,49 +14,45 @@ import statistics
 # --- CONFIG MUST BE FIRST ---
 st.set_page_config(page_title="The Logic Lab", page_icon="🧪", layout="centered")
 
-# --- CUSTOM CSS (THE DESIGNER LAYER) ---
+# --- CUSTOM CSS (THE DARK MODE FIX) ---
 st.markdown("""
 <style>
-    /* 1. ACADEMIC FONT & CLEAN UP */
+    /* 1. FORCE TEXT VISIBILITY */
     html, body, [class*="css"] {
         font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
     
-    /* 2. THUMB-FRIENDLY BUTTONS */
+    /* 2. CALCULATOR BUTTONS (High Contrast) */
     div.stButton > button {
         width: 100%;
-        height: 50px;  /* Taller for thumbs */
+        height: 50px;
         font-size: 20px !important;
         font-weight: 600;
         border-radius: 12px;
         border: 1px solid #dfe1e5;
-        background-color: #f8f9fa;
+        background-color: #f8f9fa !important; /* Force White Background */
+        color: #000000 !important;          /* FORCE BLACK TEXT */
         transition: all 0.2s;
     }
     div.stButton > button:active {
-        background-color: #e2e6ea;
+        background-color: #e2e6ea !important;
         transform: scale(0.98);
     }
     
-    /* 3. PRIMARY ACTION BUTTONS (Check/Next) */
-    div.stButton > button[kind="primary"] {
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
+    /* 3. PRIMARY ACTION BUTTONS (Green) */
+    /* We use a specific selector to target the 'Check Logic' button if possible, 
+       but Streamlit generic buttons are hard to target individually. 
+       This keeps them consistent with the keypad. */
     
-    /* 4. THE WORKSPACE (Notebook Feel) */
+    /* 4. THE WORKSPACE (Clean Box) */
     .workspace-box {
         padding: 20px;
         border-radius: 15px;
-        background-color: #ffffff;
+        background-color: #ffffff; /* Always White Background */
         border: 1px solid #e0e0e0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         margin-bottom: 20px;
+        color: #000000 !important; /* Force Black Text inside box */
     }
     
     /* 5. FEEDBACK BOXES */
@@ -77,7 +73,7 @@ if 'step_verified' not in st.session_state: st.session_state.step_verified = Fal
 if 'last_image_bytes' not in st.session_state: st.session_state.last_image_bytes = None
 if 'original_solution_set' not in st.session_state: st.session_state.original_solution_set = None
 
-# --- CORE LOGIC (UNCHANGED v12.3 ENGINE) ---
+# --- CORE LOGIC (UNCHANGED) ---
 def clear_all():
     st.session_state.line_prev = ""
     st.session_state.line_curr = ""
@@ -114,7 +110,7 @@ def parse_for_logic(text):
         else: return parse_expr(text, transformations=transformations, evaluate=True, local_dict=logic_dict)
     except: return sympy.sympify(text, evaluate=True)
 
-# (Re-including Stats Helpers for brevity)
+# (Helpers)
 def sanitize_args(args):
     data = []
     for a in args:
@@ -214,7 +210,8 @@ def validate_step(line_prev_str, line_curr_str):
         elif not any(c in line_curr_str for c in "+-*/^"): is_final_answer = True
 
         if set_A is None or set_B is None: return False, "Parsing Error", "", debug_info
-        if set_A == set_B: return True, ("Final" if is_final_answer else "Valid"), "", debug_info
+        if set_A == set_B: 
+            return True, ("Final" if is_final_answer else "Valid"), "", debug_info
         if set_A.issubset(set_B) and set_A != set_B:
             if is_final_answer and st.session_state.original_solution_set != set_B:
                 return True, "Valid (Warning)", "Wait! You found two potential solutions. Check BOTH in the **original** equation.", debug_info
@@ -228,9 +225,8 @@ def validate_step(line_prev_str, line_curr_str):
 def pretty_print(math_str):
     try:
         if not math_str: return ""
-        # Lazy Brain display logic included directly here for brevity
         clean = clean_input(math_str)
-        if "matrix" in clean: return latex(sympy.sympify(clean, evaluate=False)) # Basic latex
+        if "matrix" in clean: return latex(sympy.sympify(clean, evaluate=False))
         return latex(sympy.sympify(clean, evaluate=False))
     except: return math_str
 
@@ -263,18 +259,39 @@ if st.session_state.original_solution_set:
 
 # --- WORKSPACE ---
 st.markdown('<div class="workspace-box">', unsafe_allow_html=True)
-st.caption("PREVIOUS STEP")
-st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="Enter Step 1...")
-if st.session_state.line_prev: st.latex(pretty_print(st.session_state.line_prev))
-st.markdown("---")
-st.caption("CURRENT STEP")
-st.text_input("Line B", key="line_curr", label_visibility="collapsed", placeholder="Enter Step 2...")
-if st.session_state.line_curr: st.latex(pretty_print(st.session_state.line_curr))
+col_a, col_b = st.columns(2)
+with col_a:
+    st.caption("PREVIOUS STEP")
+    st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="Enter Step 1...")
+    if st.session_state.line_prev: st.latex(pretty_print(st.session_state.line_prev))
+with col_b:
+    st.caption("CURRENT STEP")
+    st.text_input("Line B", key="line_curr", label_visibility="collapsed", placeholder="Enter Step 2...")
+    if st.session_state.line_curr: st.latex(pretty_print(st.session_state.line_curr))
 st.markdown('</div>', unsafe_allow_html=True)
+
+# --- ACTIONS ---
+c_chk, c_nxt = st.columns([1, 1])
+with c_chk:
+    if st.button("Check Logic", type="primary"):
+        res, status, hint, _ = validate_step(st.session_state.line_prev, st.session_state.line_curr)
+        if res:
+            st.session_state.step_verified = True
+            if status == "Final": st.balloons(); st.markdown("<div class='success-box'><b>🎉 Problem Solved!</b></div>", unsafe_allow_html=True)
+            elif "Warning" in status: st.markdown(f"<div class='warning-box'><b>⚠️ Valid, but...</b><br>{hint}</div>", unsafe_allow_html=True)
+            else: st.markdown("<div class='success-box'><b>✅ Good Step. Keep going.</b></div>", unsafe_allow_html=True)
+        else:
+            st.session_state.step_verified = False
+            st.markdown("<div class='error-box'><b>❌ Logic Break</b></div>", unsafe_allow_html=True)
+            if hint: st.markdown(f"<div class='hint-box'><b>💡 {hint}</b></div>", unsafe_allow_html=True)
+
+with c_nxt:
+    if st.session_state.step_verified: st.button("⬇️ Next Step", on_click=next_step)
+
+st.markdown("---")
 
 # --- KEYPAD ---
 with st.expander("⌨️ Keypad", expanded=True):
-    # Toggle inside keypad for UX
     st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
     t1, t2, t3, t4 = st.tabs(["Alg", "Calc", "Stat", "Mat"])
     
@@ -300,31 +317,16 @@ with st.expander("⌨️ Keypad", expanded=True):
         c1.button("Mat", on_click=add_to_input, args=("Matrix([",)); c2.button("[ ]", on_click=add_to_input, args=("[",))
         c3.button("]", on_click=add_to_input, args=("])",)); c4.button("!", on_click=add_to_input, args=("factorial(",))
 
-# --- ACTIONS ---
-c_chk, c_nxt = st.columns([1, 1])
-with c_chk:
-    if st.button("Check Logic", type="primary"):
-        res, status, hint, _ = validate_step(st.session_state.line_prev, st.session_state.line_curr)
-        if res:
-            st.session_state.step_verified = True
-            if status == "Final": st.balloons(); st.markdown("<div class='success-box'><b>🎉 Problem Solved!</b></div>", unsafe_allow_html=True)
-            elif "Warning" in status: st.markdown(f"<div class='warning-box'><b>⚠️ Valid, but...</b><br>{hint}</div>", unsafe_allow_html=True)
-            else: st.markdown("<div class='success-box'><b>✅ Good Step. Keep going.</b></div>", unsafe_allow_html=True)
-        else:
-            st.session_state.step_verified = False
-            st.markdown("<div class='error-box'><b>❌ Logic Break</b></div>", unsafe_allow_html=True)
-            if hint: st.markdown(f"<div class='hint-box'><b>💡 {hint}</b></div>", unsafe_allow_html=True)
-
-with c_nxt:
-    if st.session_state.step_verified: st.button("⬇️ Next Step", on_click=next_step)
-
 # --- SIDEBAR & CAM ---
 with st.sidebar:
     st.header("Settings")
     if st.toggle("📷 Camera"):
-        img_file = st.camera_input("Scan Math")
-        if img_file:
-            # Camera logic (simplified for brevity)
-            pass 
+        if "mathpix_app_id" in st.secrets:
+            img_file = st.camera_input("Scan Math")
+            if img_file:
+                # Basic OCR processing (placeholder)
+                pass
+        else:
+            st.warning("Needs API Keys")
     st.markdown("---")
     st.toggle("Parent Mode")
