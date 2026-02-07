@@ -14,34 +14,36 @@ import statistics
 # --- CONFIG ---
 st.set_page_config(page_title="The Logic Lab", page_icon="🧪", layout="centered")
 
-# --- CUSTOM CSS ---
+# --- CUSTOM CSS (THE NUCLEAR OPTION) ---
 st.markdown("""
 <style>
     /* 1. GENERAL FONT */
     html, body, [class*="css"] { font-family: 'Segoe UI', Roboto, sans-serif; }
     
-    /* 2. BUTTONS - UNIVERSAL SYMBOL FORCE */
+    /* 2. BUTTONS - FORCE BLACK TEXT ON EVERYTHING */
     div.stButton > button {
         width: 100%; height: 50px; 
         border-radius: 12px; border: 1px solid #dfe1e5;
         background-color: #f8f9fa !important; 
         transition: all 0.2s;
     }
-    div.stButton > button div, 
-    div.stButton > button p, 
-    div.stButton > button span,
-    div.stButton > button {
-        color: #000000 !important;
+
+    /* THE FIX: Target the button AND every single element inside it (*) */
+    div.stButton > button, 
+    div.stButton > button * {
+        color: #000000 !important; /* Force Black */
         font-size: 22px !important; 
-        font-weight: 800 !important; 
+        font-weight: 700 !important; /* Bold */
         opacity: 1 !important;
+        fill: #000000 !important; /* Fix for SVG icons if Streamlit uses them */
     }
+
     div.stButton > button:active { background-color: #e2e6ea !important; transform: scale(0.98); }
 
     /* 3. STOP COLUMNS FROM STACKING ON MOBILE */
     [data-testid="column"] { min-width: 1px !important; }
 
-    /* 4. INPUT BOX STYLING (Gray vs White) */
+    /* 4. INPUT BOX STYLING */
     [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input {
         background-color: #f1f3f4 !important; 
         color: #202124 !important; 
@@ -60,7 +62,7 @@ st.markdown("""
     .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; margin-top: 10px; }
     .hint-box { margin-top: 10px; padding: 10px; background: #e2e3e5; color: #41464b; border-radius: 5px; border-left: 5px solid #0d6efd; font-size: 15px; }
     
-    /* 6. FOOTER NOTE STYLE */
+    /* 6. FOOTER */
     .footer-note { font-size: 13px; color: #70757a; text-align: center; margin-top: 30px; padding: 20px; border-top: 1px solid #e0e0e0; }
 </style>
 """, unsafe_allow_html=True)
@@ -111,7 +113,7 @@ def parse_for_logic(text):
         else: return parse_expr(text, transformations=transformations, evaluate=True, local_dict=logic_dict)
     except: return sympy.sympify(text, evaluate=True)
 
-# Stats Helpers
+# Stats
 def sanitize_args(args):
     data = []
     for a in args:
@@ -224,8 +226,61 @@ def pretty_print(math_str):
     try:
         if not math_str: return ""
         clean = clean_input(math_str)
+        if "matrix" in clean: return latex(sympy.sympify(clean, evaluate=False))
         return latex(sympy.sympify(clean, evaluate=False))
     except: return math_str
+
+def process_image_with_mathpix(image_file, app_id, app_key):
+    try:
+        image_bytes = image_file.getvalue()
+        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        data_uri = f"data:image/jpeg;base64,{image_base64}"
+        url = "https://api.mathpix.com/v3/text"
+        headers = {"app_id": app_id, "app_key": app_key, "Content-type": "application/json"}
+        data = {"src": data_uri, "formats": ["asciimath", "text", "latex_simplified"], "data_options": {"include_asciimath": True}}
+        response = requests.post(url, json=data, headers=headers)
+        response.raise_for_status()
+        result = response.json()
+        if 'asciimath' in result: return result['asciimath']
+        elif 'text' in result: return result['text']
+        elif 'latex_simplified' in result: return result['latex_simplified']
+        else: return None
+    except Exception as e: return None
+
+def plot_system_interactive(text_str):
+    try:
+        x, y = symbols('x y')
+        clean = clean_input(text_str)
+        equations = []
+        if ";" in clean: raw_eqs = clean.split(";")
+        elif clean.count("=") > 1 and "," in clean: raw_eqs = clean.split(",")
+        else: raw_eqs = [clean]
+        for r in raw_eqs:
+            if r.strip(): equations.append(parse_for_logic(r))
+        fig = go.Figure()
+        x_vals = np.linspace(-10, 10, 100)
+        colors = ['blue', 'orange', 'green']
+        i = 0; has_plotted = False
+        for eq in equations:
+            try:
+                if eq.has(I): continue
+                if 'y' in str(eq):
+                    y_expr = solve(eq, y)
+                    if y_expr:
+                        f_y = sympy.lambdify(x, y_expr[0], "numpy") 
+                        y_vals = f_y(x_vals)
+                        if np.iscomplexobj(y_vals): y_vals = y_vals.real 
+                        fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name=f"Eq {i+1}", line=dict(color=colors[i % 3]))); has_plotted = True; i += 1
+                elif 'x' in str(eq):
+                    x_sol = solve(eq, x)
+                    if x_sol:
+                        val = float(x_sol[0])
+                        fig.add_vline(x=val, line_dash="dash", line_color=colors[i%3], annotation_text=f"x={val}"); has_plotted = True; i += 1
+            except: pass
+        if not has_plotted: return None, None
+        fig.update_layout(xaxis=dict(range=[-10, 10], zeroline=True), yaxis=dict(range=[-10, 10], zeroline=True), height=400, margin=dict(l=20, r=20, t=20, b=20))
+        return fig, []
+    except: return None, None
 
 # --- WEB INTERFACE ---
 col_head1, col_head2 = st.columns([3, 1])
@@ -240,6 +295,9 @@ st.caption("PREVIOUS STEP (Problem)")
 st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="Enter Step 1...", help="Previous Line")
 if st.session_state.line_prev: 
     st.latex(pretty_print(st.session_state.line_prev))
+    if st.checkbox("Show Graph", key="graph_1"):
+        fig, _ = plot_system_interactive(st.session_state.line_prev)
+        if fig: st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
 st.caption("CURRENT STEP (Your Work)")
@@ -276,7 +334,7 @@ with c_chk:
         if res:
             st.session_state.step_verified = True
             if status == "Final": st.balloons(); st.markdown("<div class='success-box'><b>🎉 Problem Solved!</b></div>", unsafe_allow_html=True)
-            elif "Warning" in status: st.markdown(f"<div class='warning-box'><b>⚠️ Valid, but...</b><br><small>{hint}</small></div>", unsafe_allow_html=True)
+            elif "Warning" in status: st.markdown(f"<div class='warning-box'><b>⚠️ Valid, but...</b><br>{hint}</div>", unsafe_allow_html=True)
             else: st.markdown("<div class='success-box'><b>✅ Good Step. Keep going.</b></div>", unsafe_allow_html=True)
         else:
             st.session_state.step_verified = False
@@ -297,4 +355,9 @@ st.markdown("""
 with st.sidebar:
     st.header("Settings")
     if st.toggle("📷 Camera"):
-        st.warning("Needs API Keys in Secrets")
+        if "mathpix_app_id" in st.secrets:
+            img_file = st.camera_input("Scan Math")
+            if img_file: pass
+        else: st.warning("Needs API Keys")
+    st.markdown("---")
+    st.toggle("Parent Mode")
