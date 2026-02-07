@@ -23,7 +23,15 @@ st.markdown("""
     .main-header { text-align: center; padding: 15px; background-color: var(--regents-blue); color: white; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     h1 { font-size: 24px !important; margin: 0 !important; }
     p { margin: 0 !important; }
-    .stat-item { text-align: center; font-weight: bold; color: #495057; font-size: 18px; }
+    
+    /* BIGGER STATS FOR REGENTS MODE */
+    .stat-item { 
+        text-align: center; 
+        font-weight: 800; 
+        color: #495057; 
+        font-size: 26px; /* Bigger! */
+        margin-top: 5px;
+    }
     
     div.stButton > button {
         width: 100%; height: 50px; border-radius: 10px; border: 1px solid #4a4a4a;
@@ -174,15 +182,32 @@ st.markdown('<div class="main-header"><h1>🧪 THE LOGIC LAB</h1><p>NYC Regents 
 
 with st.sidebar:
     st.header("⚙️ Settings")
+    # THE TOGGLE
+    regents_mode = st.toggle("🏆 Regents Mode", value=False)
+    if regents_mode:
+        st.caption("Timer & Hints Enabled")
+    else:
+        st.caption("Study Mode (Relaxed)")
+        
+    st.markdown("---")
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode")
+    
+    st.markdown("---")
     if st.button("🗑️ Clear Leaderboard"):
         st.session_state.high_scores = []; st.rerun()
 
+# DASHBOARD (CONDITIONAL)
 col_d1, col_d2, col_d3 = st.columns(3)
-with col_d1:
-    elapsed = int(time.time() - st.session_state.start_time) if st.session_state.start_time and not st.session_state.problem_solved else 0
-    st.markdown(f"<div class='stat-item'>⏱️ {elapsed}s</div>", unsafe_allow_html=True)
-with col_d2: st.markdown(f"<div class='stat-item'>💡 {st.session_state.hint_count} Hints</div>", unsafe_allow_html=True)
+
+# Only show stats if Regents Mode is ON
+if regents_mode:
+    with col_d1:
+        elapsed = int(time.time() - st.session_state.start_time) if st.session_state.start_time and not st.session_state.problem_solved else 0
+        st.markdown(f"<div class='stat-item'>⏱️ {elapsed}s</div>", unsafe_allow_html=True)
+    with col_d2: 
+        st.markdown(f"<div class='stat-item'>💡 {st.session_state.hint_count}</div>", unsafe_allow_html=True)
+
+# The "NEW" button is always visible in the 3rd column
 with col_d3:
     if st.button("✨ NEW", key="new_btn"): clear_all(); st.rerun()
 
@@ -222,7 +247,9 @@ if not st.session_state.problem_solved:
                 if status == "Final":
                     st.session_state.problem_solved = True
                     final_time = int(time.time() - st.session_state.start_time)
-                    st.session_state.high_scores.append({"Time": f"{final_time}s", "Hints": st.session_state.hint_count, "Date": datetime.datetime.now().strftime("%H:%M")})
+                    # Only save to leaderboard if in Regents Mode
+                    if regents_mode:
+                        st.session_state.high_scores.append({"Time": f"{final_time}s", "Hints": st.session_state.hint_count, "Date": datetime.datetime.now().strftime("%H:%M")})
                     st.balloons(); st.success(f"🏆 Solved in {final_time}s!")
                 elif status == "Warning": st.markdown(f"<div class='warning-box'>⚠️ {hint}</div>", unsafe_allow_html=True)
                 else: st.markdown("<div class='success-box'>✅ Correct! Keep going.</div>", unsafe_allow_html=True)
@@ -241,4 +268,4 @@ if st.session_state.high_scores:
 with st.expander("🛠️ Debug Details"):
     st.write(st.session_state.debug_log)
     
-st.markdown("<div class='footer-note'>Built for NYC Math Teachers • The Logic Lab v15.3</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer-note'>Built for NYC Math Teachers • The Logic Lab v15.4</div>", unsafe_allow_html=True)
