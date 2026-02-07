@@ -190,7 +190,7 @@ def flatten_set(s):
     return sympy.FiniteSet(*flat_items)
 
 def get_solution_set(text_str):
-    x, y = symbols('x y')
+    # REMOVED: x, y = symbols('x y') -- We now detect variables dynamically!
     clean = clean_input(text_str)
     try:
         # 1. Parse using the Active Brain
@@ -218,9 +218,17 @@ def get_solution_set(text_str):
         else:
              equations.append(parse_for_logic(clean))
 
-        # 2. Solver Logic
+        # 2. Solver Logic (Dynamic Variable Detection)
+        # Find all symbols in the equation (e.g., t, z, apple)
+        all_symbols = set()
+        for eq in equations:
+            all_symbols.update(eq.free_symbols)
+        
+        # Convert set to list for solving
+        solve_vars = list(all_symbols)
+
         if len(equations) > 1:
-            sol = solve(equations, (x, y), set=True)
+            sol = solve(equations, solve_vars, set=True)
             return flatten_set(sol[1])
         else:
             expr = equations[0]
@@ -228,20 +236,18 @@ def get_solution_set(text_str):
             if expr.is_Number:
                 return flatten_set(sympy.FiniteSet(expr))
             if isinstance(expr, tuple): return flatten_set(sympy.FiniteSet(expr))
-            
-            # Matrix Handling (Immutable)
             if isinstance(expr, ImmutableDenseMatrix): 
                 return flatten_set(sympy.FiniteSet(expr))
             
             if isinstance(expr, Eq) or not (expr.is_Relational):
-                 if 'y' in str(expr) and 'x' in str(expr): return flatten_set(sympy.FiniteSet(expr))
-                 else:
-                     if 'x' not in str(expr) and 'y' not in str(expr): return flatten_set(sympy.FiniteSet(expr))
-                     sol = solve(expr, x, set=True)
-                     return flatten_set(sol[1])
+                 # Auto-detect what to solve for
+                 if not solve_vars: return flatten_set(sympy.FiniteSet(expr))
+                 sol = solve(expr, solve_vars, set=True)
+                 return flatten_set(sol[1])
             else:
                 try:
-                    sol = solve(expr, x, set=True)
+                    if not solve_vars: return flatten_set(sympy.FiniteSet(expr))
+                    sol = solve(expr, solve_vars[0], set=True) # Inequalities usually take 1 var
                     return flatten_set(sol[1])
                 except:
                     return flatten_set(sympy.FiniteSet(expr))
@@ -257,7 +263,7 @@ def check_numerical_equivalence(set_a, set_b, tolerance=1e-8):
         if len(list_a) != len(list_b): return False
         
         # Check if items are Matrices
-        if isinstance(list_a[0], ImmutableDenseMatrix) or isinstance(list_b[0], ImmutableDenseMatrix):
+        if list_a and (isinstance(list_a[0], ImmutableDenseMatrix) or isinstance(list_b[0], ImmutableDenseMatrix)):
             mat_a = list_a[0]
             mat_b = list_b[0]
             # 1. Exact Match
@@ -334,7 +340,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v9.5", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v9.6", page_icon="🧪")
 
 st.markdown("""
 <style>
