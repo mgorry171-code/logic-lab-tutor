@@ -240,4 +240,4 @@ if st.session_state.high_scores:
 with st.expander("🛠️ Debug Details"):
     st.write(st.session_state.debug_log)
     
-st.markdown("<div class='footer-note'>Built for NYC Math Teachers • The Logic Lab v15.3</div>", uns
+st.markdown("<div class='footer-note'>Built for NYC Math Teachers • The Logic Lab v15.3</div>", uns)
