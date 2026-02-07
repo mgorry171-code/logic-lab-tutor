@@ -14,29 +14,34 @@ import statistics
 # --- CONFIG ---
 st.set_page_config(page_title="The Logic Lab", page_icon="🧪", layout="centered")
 
-# --- CUSTOM CSS (THE BLACKBOARD THEME) ---
+# --- CUSTOM CSS (THE MOBILE VISIBILITY FIX) ---
 st.markdown("""
 <style>
     /* 1. GENERAL FONT */
     html, body, [class*="css"] { font-family: 'Segoe UI', Roboto, sans-serif; }
     
-    /* 2. THE BLACKBOARD BUTTONS (High Contrast) */
+    /* 2. THE BLACKBOARD BUTTONS */
     div.stButton > button {
         width: 100%; height: 50px; 
         border-radius: 10px; 
         border: 1px solid #4a4a4a;
         
-        /* THE FIX: Dark Background, Bright White Text */
+        /* DARK MODE COLORS */
         background-color: #262730 !important; 
         color: #ffffff !important;
+        
+        /* MOBILE OVERRIDES (The Fix) */
+        -webkit-appearance: none !important; /* Stop iPhone from greying it out */
+        appearance: none !important;
+        box-shadow: none !important;
         
         font-size: 22px !important; 
         font-weight: 700 !important;
         transition: all 0.1s;
     }
 
-    /* Force internal text elements (p tags) to be White */
-    div.stButton > button p {
+    /* Force EVERYTHING inside the button to be White */
+    div.stButton > button * {
         color: #ffffff !important;
     }
 
@@ -45,9 +50,7 @@ st.markdown("""
         border-color: #4dabf7;
         color: #4dabf7 !important;
     }
-    div.stButton > button:hover p {
-        color: #4dabf7 !important;
-    }
+    div.stButton > button:hover p { color: #4dabf7 !important; }
 
     div.stButton > button:active { 
         background-color: #000000 !important; 
@@ -57,7 +60,7 @@ st.markdown("""
     /* 3. STOP COLUMNS FROM STACKING ON MOBILE */
     [data-testid="column"] { min-width: 1px !important; }
 
-    /* 4. INPUT BOX STYLING (Gray vs White) */
+    /* 4. INPUT BOX STYLING */
     [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input {
         background-color: #f1f3f4 !important; 
         color: #202124 !important; 
@@ -70,13 +73,12 @@ st.markdown("""
         box-shadow: 0 1px 6px rgba(32,33,36,0.12);
     }
 
-    /* 5. FEEDBACK BOXES */
+    /* 5. BOXES & NOTES */
+    .workspace-box { padding: 20px; border-radius: 15px; background: white; border: 1px solid #e0e0e0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
     .success-box { padding: 15px; background: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; margin-top: 10px; }
     .warning-box { padding: 15px; background: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; margin-top: 10px; }
     .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; margin-top: 10px; }
     .hint-box { margin-top: 10px; padding: 10px; background: #e2e3e5; color: #41464b; border-radius: 5px; border-left: 5px solid #0d6efd; font-size: 15px; }
-    
-    /* 6. FOOTER */
     .footer-note { font-size: 13px; color: #70757a; text-align: center; margin-top: 30px; padding: 20px; border-top: 1px solid #e0e0e0; }
 </style>
 """, unsafe_allow_html=True)
@@ -108,6 +110,8 @@ def add_to_input(text_to_add):
 
 def clean_input(text):
     text = text.lower()
+    # Normalize the "Fancy" Unicode symbols back to standard math
+    text = text.replace("＋", "+").replace("－", "-")
     text = text.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
     text = text.replace("\\", "").replace("`", "")
     text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
@@ -326,7 +330,10 @@ with st.expander("⌨️ Keypad", expanded=True):
         c1.button("x²", on_click=add_to_input, args=("^2",), key="a_sq"); c2.button("√", on_click=add_to_input, args=("sqrt(",), key="a_rt")
         c3.button("(", on_click=add_to_input, args=("(",), key="a_op"); c4.button(")", on_click=add_to_input, args=(")",), key="a_cp")
         c1.button("x", on_click=add_to_input, args=("x",), key="a_x"); c2.button("÷", on_click=add_to_input, args=("/",), key="a_d")
-        c3.button("+", on_click=add_to_input, args=("+",), key="a_p"); c4.button("-", on_click=add_to_input, args=("-",), key="a_m")
+        
+        # --- THE FIX: UNICODE CHARACTERS THAT LOOK LIKE MATH BUT ACT LIKE TEXT ---
+        c3.button("＋", on_click=add_to_input, args=("+",), key="a_p"); c4.button("－", on_click=add_to_input, args=("-",), key="a_m")
+        
     with t2:
         c1, c2, c3, c4 = st.columns(4)
         c1.button("d/dx", on_click=add_to_input, args=("diff(",), key="c_df"); c2.button("∫", on_click=add_to_input, args=("integrate(",), key="c_in")
