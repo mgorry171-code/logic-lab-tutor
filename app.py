@@ -49,11 +49,8 @@ def clean_input(text):
     text = text.replace("\\", "")
     text = text.replace("`", "")
     text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
-    
-    # SMARTER CONNECTIVES
     text = text.replace(" and ", ",") 
-    text = text.replace(" or ", ",")  # Added OR support
-    
+    text = text.replace(" or ", ",") 
     text = text.replace("^", "**")
     text = re.sub(r'(?<![a-z])i(?![a-z])', 'I', text) 
     text = text.replace("+/-", "±")
@@ -65,7 +62,6 @@ def clean_input(text):
 
 # --- CUSTOM STATS FUNCTIONS ---
 def sanitize_args(args):
-    """Flattens mixed args and converts to floats."""
     data = []
     for a in args:
         if isinstance(a, (list, tuple, sympy.FiniteSet)):
@@ -75,7 +71,6 @@ def sanitize_args(args):
     return [float(x) for x in data]
 
 def to_sympy_number(val):
-    """Aggressively cleans numbers: 3.0 -> 3."""
     try:
         val = round(val, 8) 
         if val == int(val):
@@ -114,7 +109,6 @@ def my_stdev(*args):
 # --- PARSING ENGINES ---
 
 def parse_for_display(text):
-    """THE LAZY BRAIN: Formats math but REFUSES to calculate it."""
     transformations = (standard_transformations + (implicit_multiplication_application,))
     try:
         display_dict = {
@@ -132,7 +126,6 @@ def parse_for_display(text):
         }
         
         clean_text = clean_input(text)
-        
         if "=" in clean_text:
             parts = clean_text.split("=")
             lhs = parse_expr(parts[0], transformations=transformations, evaluate=False, local_dict=display_dict)
@@ -144,12 +137,11 @@ def parse_for_display(text):
         return text
 
 def parse_for_logic(text):
-    """THE ACTIVE BRAIN: Actually calculates the result."""
     transformations = (standard_transformations + (implicit_multiplication_application,))
     try:
         logic_dict = {
             'e': E, 'pi': pi, 'diff': diff, 'integrate': integrate, 'limit': limit, 'oo': oo,
-            'matrix': ImmutableDenseMatrix, # Use Immutable for calculations
+            'matrix': ImmutableDenseMatrix, 
             'factorial': factorial,
             'mean': my_mean, 
             'avg': my_mean,        
@@ -196,25 +188,19 @@ def flatten_set(s):
 def get_solution_set(text_str):
     clean = clean_input(text_str)
     try:
-        # 1. Parse using the Active Brain
         if "±" in clean:
             parts = clean.split("±")
             val = parse_for_logic(parts[1].strip())
             return flatten_set(sympy.FiniteSet(val, -val))
         
-        # --- NEW: Handle "t = 2, -2" (Answer Assignment List) ---
-        # If there is exactly one "=" and commas, but NO parentheses (not a function call)
         elif clean.count("=") == 1 and "," in clean and "(" not in clean:
-             # Discard LHS (t=), keep RHS (2, -2)
              rhs = clean.split("=")[1]
              items = rhs.split(",")
              vals = []
              for i in items:
                 if i.strip(): vals.append(parse_for_logic(i.strip()))
              return flatten_set(sympy.FiniteSet(*vals))
-        # --------------------------------------------------------
         
-        # Standard List (2, -2)
         elif "," in clean and "=" not in clean and "(" not in clean:
             items = clean.split(",")
             vals = []
@@ -234,7 +220,6 @@ def get_solution_set(text_str):
         else:
              equations.append(parse_for_logic(clean))
 
-        # 2. Solver Logic (Dynamic Variable Detection)
         all_symbols = set()
         for eq in equations:
             all_symbols.update(eq.free_symbols)
@@ -245,12 +230,9 @@ def get_solution_set(text_str):
             return flatten_set(sol[1])
         else:
             expr = equations[0]
-            
-            if expr.is_Number:
-                return flatten_set(sympy.FiniteSet(expr))
+            if expr.is_Number: return flatten_set(sympy.FiniteSet(expr))
             if isinstance(expr, tuple): return flatten_set(sympy.FiniteSet(expr))
-            if isinstance(expr, ImmutableDenseMatrix): 
-                return flatten_set(sympy.FiniteSet(expr))
+            if isinstance(expr, ImmutableDenseMatrix): return flatten_set(sympy.FiniteSet(expr))
             
             if isinstance(expr, Eq) or not (expr.is_Relational):
                  if not solve_vars: return flatten_set(sympy.FiniteSet(expr))
@@ -268,12 +250,9 @@ def get_solution_set(text_str):
 
 def check_numerical_equivalence(set_a, set_b, tolerance=1e-8):
     try:
-        # MATRIX HANDLING
         list_a = list(set_a)
         list_b = list(set_b)
-        
         if len(list_a) != len(list_b): return False
-        
         if list_a and (isinstance(list_a[0], ImmutableDenseMatrix) or isinstance(list_b[0], ImmutableDenseMatrix)):
             mat_a = list_a[0]
             mat_b = list_b[0]
@@ -281,17 +260,41 @@ def check_numerical_equivalence(set_a, set_b, tolerance=1e-8):
             if mat_a == mat_b.T: return True
             return False
 
-        # STANDARD NUMBER HANDLING
         list_a = [complex(i.evalf()) for i in set_a]
         list_b = [complex(i.evalf()) for i in set_b]
         list_a.sort(key=lambda z: (z.real, z.imag))
         list_b.sort(key=lambda z: (z.real, z.imag))
-        
         for a, b in zip(list_a, list_b):
                 if not np.isclose(a, b, atol=tolerance): return False
         return True
     except:
         return False
+
+# --- NEW: REGENTS "TRAP" DETECTOR ---
+def check_common_errors(text_a, text_b):
+    """Detects specific student errors and returns a custom hint."""
+    hint = ""
+    try:
+        clean_a = clean_input(text_a)
+        clean_b = clean_input(text_b)
+        
+        # 1. Inequality Sign Error (Regents Trap #2)
+        if ("<" in clean_a or ">" in clean_a) and ("-" in clean_a):
+            # Check if they divided by negative but kept sign same
+            if "<" in clean_a and "<" in clean_b:
+                hint = "⚠️ Trap Detected: Did you divide by a negative? Remember to flip the sign!"
+            elif ">" in clean_a and ">" in clean_b:
+                hint = "⚠️ Trap Detected: Did you divide by a negative? Remember to flip the sign!"
+
+        # 2. Distribution Error (Regents Trap #1 & #3)
+        # Very basic check: did they lose a term?
+        if "(" in clean_a and ")" in clean_a and "(" not in clean_b:
+             # This is hard to detect perfectly without parsing, but we can offer a gentle nudge
+             hint = "⚠️ Check Distribution: Did you multiply the term outside to EVERY term inside?"
+
+    except:
+        pass
+    return hint
 
 def validate_step(line_prev_str, line_curr_str):
     debug_info = {}
@@ -306,22 +309,25 @@ def validate_step(line_prev_str, line_curr_str):
         if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
         if set_B is None: return False, "Could not parse Line B", "", debug_info
 
-        # 1. STRICT CHECK (Exact Match)
+        # 1. Exact Match
         if set_A == set_B: return True, "Valid", "", debug_info
         try:
-            list_A = sorted([str(s) for s in set_A])
-            list_B = sorted([str(s) for s in set_B])
-            if list_A == list_B:
+            if sorted([str(s) for s in set_A]) == sorted([str(s) for s in set_B]):
                  return True, "Valid", "", debug_info
         except: pass
         
-        # 2. NUMERICAL CHECK (Strict 1e-8)
+        # 2. Numerical Match
         if check_numerical_equivalence(set_A, set_B, tolerance=1e-8):
              return True, "Valid", "", debug_info
         
-        # 3. ROUNDING CHECK (Lenient 0.01)
+        # 3. Rounding Match
         if check_numerical_equivalence(set_A, set_B, tolerance=0.01):
              return True, "Valid (Rounded)", "Approximation accepted.", debug_info
+
+        # 4. IF INVALID -> CHECK FOR REGENTS TRAPS
+        trap_hint = check_common_errors(line_prev_str, line_curr_str)
+        if trap_hint:
+             return False, "Invalid", trap_hint, debug_info
 
         return False, "Invalid", "Values do not match.", debug_info
 
@@ -349,7 +355,7 @@ def process_image_with_mathpix(image_file, app_id, app_key):
 
 # --- WEB INTERFACE ---
 
-st.set_page_config(page_title="The Logic Lab v9.7", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v10.0", page_icon="🧪")
 
 st.markdown("""
 <style>
