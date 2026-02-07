@@ -270,26 +270,22 @@ def check_numerical_equivalence(set_a, set_b, tolerance=1e-8):
     except:
         return False
 
-# --- NEW: REGENTS "TRAP" DETECTOR ---
+# --- HINT LOGIC ---
 def check_common_errors(text_a, text_b):
-    """Detects specific student errors and returns a custom hint."""
     hint = ""
     try:
         clean_a = clean_input(text_a)
         clean_b = clean_input(text_b)
         
-        # 1. Inequality Sign Error (Regents Trap #2)
+        # 1. Inequality Sign Error
         if ("<" in clean_a or ">" in clean_a) and ("-" in clean_a):
-            # Check if they divided by negative but kept sign same
             if "<" in clean_a and "<" in clean_b:
                 hint = "⚠️ Trap Detected: Did you divide by a negative? Remember to flip the sign!"
             elif ">" in clean_a and ">" in clean_b:
                 hint = "⚠️ Trap Detected: Did you divide by a negative? Remember to flip the sign!"
 
-        # 2. Distribution Error (Regents Trap #1 & #3)
-        # Very basic check: did they lose a term?
+        # 2. Distribution Error
         if "(" in clean_a and ")" in clean_a and "(" not in clean_b:
-             # This is hard to detect perfectly without parsing, but we can offer a gentle nudge
              hint = "⚠️ Check Distribution: Did you multiply the term outside to EVERY term inside?"
 
     except:
@@ -303,28 +299,28 @@ def validate_step(line_prev_str, line_curr_str):
         set_A = get_solution_set(line_prev_str)
         set_B = get_solution_set(line_curr_str)
         
-        debug_info['Set A'] = str(set_A)
-        debug_info['Set B'] = str(set_B)
-        
         if set_A is None and line_prev_str: return False, "Could not solve Line A", "", debug_info
         if set_B is None: return False, "Could not parse Line B", "", debug_info
 
         # 1. Exact Match
         if set_A == set_B: return True, "Valid", "", debug_info
-        try:
-            if sorted([str(s) for s in set_A]) == sorted([str(s) for s in set_B]):
-                 return True, "Valid", "", debug_info
-        except: pass
         
-        # 2. Numerical Match
+        # 2. Subset Check (EXTRANEOUS SOLUTION DETECTION - Level 3)
+        # If Set A is smaller than Set B, and inside Set B -> You added an extraneous solution
+        if set_A.issubset(set_B) and set_A != set_B:
+             # This is "Valid Algebra" but "Invalid Logic" for final answer.
+             # We give it a conditional pass (Warning)
+             return True, "Valid (Warning)", "⚠️ You created an extraneous solution. Don't forget to check your roots!", debug_info
+
+        # 3. Numerical Match
         if check_numerical_equivalence(set_A, set_B, tolerance=1e-8):
              return True, "Valid", "", debug_info
         
-        # 3. Rounding Match
+        # 4. Rounding Match
         if check_numerical_equivalence(set_A, set_B, tolerance=0.01):
              return True, "Valid (Rounded)", "Approximation accepted.", debug_info
 
-        # 4. IF INVALID -> CHECK FOR REGENTS TRAPS
+        # 5. Trap Detection
         trap_hint = check_common_errors(line_prev_str, line_curr_str)
         if trap_hint:
              return False, "Invalid", trap_hint, debug_info
@@ -353,15 +349,18 @@ def process_image_with_mathpix(image_file, app_id, app_key):
         st.error(f"OCR Error: {e}")
         return None
 
-# --- WEB INTERFACE ---
+# --- WEB INTERFACE (POLISHED) ---
 
-st.set_page_config(page_title="The Logic Lab v10.0", page_icon="🧪")
+st.set_page_config(page_title="The Logic Lab v11.0", page_icon="🧪")
 
 st.markdown("""
 <style>
     .big-font { font-size:20px !important; }
-    .stButton>button { width: 100%; border-radius: 5px; }
-    .success-box { padding: 10px; background-color: #d4edda; color: #155724; border-radius: 5px; text-align: center; }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; }
+    .success-box { padding: 15px; background-color: #d4edda; color: #155724; border-radius: 10px; text-align: center; font-size: 18px; margin-bottom: 10px; }
+    .warning-box { padding: 15px; background-color: #fff3cd; color: #856404; border-radius: 10px; text-align: center; font-size: 18px; margin-bottom: 10px; }
+    .error-box { padding: 15px; background-color: #f8d7da; color: #721c24; border-radius: 10px; text-align: center; font-size: 18px; margin-bottom: 10px; }
+    .hint-box { padding: 10px; background-color: #e2e3e5; color: #383d41; border-radius: 5px; border-left: 5px solid #007bff; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -369,19 +368,9 @@ st.title("🧪 The Logic Lab")
 
 with st.sidebar:
     st.header("Settings")
-    if st.button("🗑️ Reset All Inputs", type="primary"):
+    if st.button("🗑️ Reset All Inputs"):
         clear_all()
         st.rerun()
-    
-    with st.expander("📚 Demo Cheat Sheet"):
-        st.markdown("**Calculus**")
-        st.code("diff(x^2, x)")
-        st.caption("Answer: 2x")
-        st.markdown("**Statistics**")
-        st.code("median(1, 3, 5)")
-        st.caption("Answer: 3")
-        st.markdown("**Pre-Calc (Matrices)**")
-        st.code("Matrix([[1,2],[3,4]])")
     
     st.markdown("---")
     
@@ -390,21 +379,18 @@ with st.sidebar:
     if "mathpix_app_id" in st.secrets and "mathpix_app_key" in st.secrets:
         mp_id = st.secrets["mathpix_app_id"]
         mp_key = st.secrets["mathpix_app_key"]
-        st.success("✅ Camera Active (Licensed)")
+        st.success("✅ Camera Active")
     else:
-        st.subheader("📷 Camera Settings")
-        mp_id = st.text_input("Mathpix App ID", type="password")
-        mp_key = st.text_input("Mathpix App Key", type="password")
+        st.subheader("📷 Camera Keys")
+        mp_id = st.text_input("App ID", type="password")
+        mp_key = st.text_input("App Key", type="password")
 
     st.markdown("---")
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode", value=False)
-    st.markdown("---")
     
     if st.session_state.history:
-        st.write(f"Problems Checked: **{len(st.session_state.history)}**")
-        if st.button("Clear History"):
-            st.session_state.history = []
-            st.rerun()
+        st.markdown("---")
+        st.write(f"**Session Stats:** {len(st.session_state.history)} steps checked.")
 
 # --- CAMERA INPUT ---
 with st.expander("📷 Scan Handwritten Math", expanded=False):
@@ -425,8 +411,8 @@ with st.expander("📷 Scan Handwritten Math", expanded=False):
                             st.session_state.line_prev = clean_input(extracted_text)
                             st.rerun()
                     else:
-                        st.warning("⚠️ No API Keys found. Running Simulation.")
-                        st.session_state.line_prev = "diff(x^2, x)"
+                        st.warning("⚠️ Simulation Mode (No API Keys)")
+                        st.session_state.line_prev = "sqrt(x+2) = x"
                         st.rerun()
 
 st.markdown("---")
@@ -434,7 +420,7 @@ st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
     st.markdown("### Previous Line")
-    st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="e.g. diff(x^2, x)")
+    st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="e.g. sqrt(x+2) = x")
     
     if st.session_state.line_prev:
         latex_str = pretty_print(st.session_state.line_prev)
@@ -469,7 +455,7 @@ with st.expander("⌨️ Show Keypad", expanded=False):
     
     tab1, tab2, tab3, tab4 = st.tabs(["Algebra", "Calculus", "Statistics", "Pre-Calc"])
     
-    with tab1: # Algebra
+    with tab1: 
         b1, b2, b3, b4, b5, b6 = st.columns(6)
         b1.button("x²", on_click=add_to_input, args=("^2",))
         b2.button("√", on_click=add_to_input, args=("sqrt(",))
@@ -477,7 +463,6 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b4.button(")", on_click=add_to_input, args=(")",))
         b5.button("x", on_click=add_to_input, args=("x",))
         b6.button("÷", on_click=add_to_input, args=("/",))
-        
         b1, b2, b3, b4, b5, b6 = st.columns(6)
         b1.button("i", on_click=add_to_input, args=("i",)) 
         b2.button("π", on_click=add_to_input, args=("pi",))
@@ -486,7 +471,7 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b5.button("sin", on_click=add_to_input, args=("sin(",))
         b6.button("cos", on_click=add_to_input, args=("cos(",))
 
-    with tab2: # Calculus
+    with tab2: 
         b1, b2, b3, b4, b5, b6 = st.columns(6)
         b1.button("d/dx", on_click=add_to_input, args=("diff(",))
         b2.button("∫", on_click=add_to_input, args=("integrate(",))
@@ -495,23 +480,23 @@ with st.expander("⌨️ Show Keypad", expanded=False):
         b5.button(",", on_click=add_to_input, args=(", ",), key="calc_comma") 
         b6.button("dx", on_click=add_to_input, args=(", x",))
 
-    with tab3: # Stats
+    with tab3: 
         b1, b2, b3, b4, b5, b6 = st.columns(6)
         b1.button("Mean", on_click=add_to_input, args=("mean(",))
         b2.button("Median", on_click=add_to_input, args=("median(",))
         b3.button("StDev", on_click=add_to_input, args=("stdev(",))
         b4.button(",", on_click=add_to_input, args=(", ",), key="stats_comma") 
-        b5.button("Mode (soon)", disabled=True) 
-        b6.button("Norm (soon)", disabled=True) 
+        b5.button("Mode", disabled=True) 
+        b6.button("Norm", disabled=True) 
 
-    with tab4: # Pre-Calc
+    with tab4: 
         b1, b2, b3, b4, b5, b6 = st.columns(6)
         b1.button("Matrix", on_click=add_to_input, args=("Matrix([",))
         b2.button("[ ]", on_click=add_to_input, args=("[",))
         b3.button("]", on_click=add_to_input, args=("])",))
         b4.button("n!", on_click=add_to_input, args=("factorial(",))
-        b5.button("Σ (soon)", disabled=True) 
-        b6.button("∏ (soon)", disabled=True) 
+        b5.button("Σ", disabled=True) 
+        b6.button("∏", disabled=True) 
 
 st.markdown("---")
 
@@ -528,19 +513,19 @@ with c_check:
         
         if is_valid:
             st.session_state.step_verified = True 
-            st.balloons()
-            if status == "Valid (Rounded)":
-                st.markdown(f"<div class='success-box'><b>✅ Correct!</b> <small>(Rounded)</small></div>", unsafe_allow_html=True)
+            if "Warning" in status:
+                st.markdown(f"<div class='warning-box'><b>⚠️ Valid Step, but...</b><br><small>{hint}</small></div>", unsafe_allow_html=True)
+            elif "Rounded" in status:
+                st.balloons()
+                st.markdown(f"<div class='success-box'><b>✅ Correct!</b><br><small>(Approximation Accepted)</small></div>", unsafe_allow_html=True)
             else:
+                st.balloons()
                 st.markdown(f"<div class='success-box'><b>✅ Perfect Logic!</b></div>", unsafe_allow_html=True)
         else:
             st.session_state.step_verified = False
-            st.error("❌ Logic Break")
-            # KEEP X-RAY FOR SAFETY
-            st.markdown("#### 🛠️ X-Ray Debugger:")
-            st.code(f"I calculated Set A as: {debug_data.get('Set A')}")
-            st.code(f"I calculated Set B as: {debug_data.get('Set B')}")
-            if hint: st.info(f"💡 Hint: {hint}")
+            st.markdown(f"<div class='error-box'><b>❌ Logic Break</b></div>", unsafe_allow_html=True)
+            if hint: 
+                st.markdown(f"<div class='hint-box'><b>💡 Hint:</b> {hint}</div>", unsafe_allow_html=True)
 
 with c_next:
     if st.session_state.step_verified:
