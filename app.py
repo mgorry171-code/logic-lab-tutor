@@ -1,31 +1,3 @@
-You have encountered the "Syntax Strictness" of the get_solution_set function.
-
-The Issue:
-
-What you typed: t = 2, -2 (or t = 2 and -2).
-
-What the Computer Saw: "This looks like an equation because of the = sign... but it also looks like a list because of the comma... I am confused." 🤯
-
-The Result: It crashed (None) because it tried to solve t = (2, -2) as a single math statement instead of realizing you were just listing the answers for t.
-
-The Fix (v9.7): The "Answer Key" Update I am teaching the brain to recognize "Variable Assignment Lists." If it sees something like letter = number, number, it will now:
-
-Ignore the letter (it knows you are just labeling the answer).
-
-Read the numbers after the = as a list.
-
-Check if those numbers match the solution.
-
-I also added or to the cleanup list, so if a student types t = 2 or -2, it treats it just like and.
-
-Action: Update app.py to v9.7
-Edit app.py in GitHub.
-
-Delete All and paste this code.
-
-Commit and Refresh.
-
-Python
 import streamlit as st
 import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral, ImmutableDenseMatrix
