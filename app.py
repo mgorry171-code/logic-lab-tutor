@@ -3,6 +3,7 @@ import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral, ImmutableDenseMatrix
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 import datetime
+import time
 import pandas as pd
 import re
 import numpy as np
@@ -14,90 +15,85 @@ import statistics
 # --- CONFIG ---
 st.set_page_config(page_title="The Logic Lab", page_icon="🧪", layout="centered")
 
-# --- CUSTOM CSS (THE MOBILE VISIBILITY FIX) ---
+# --- CUSTOM CSS (BRANDING & UI) ---
 st.markdown("""
 <style>
-    /* 1. GENERAL FONT */
+    /* 1. BRANDING & COLORS */
+    :root {
+        --regents-blue: #1a73e8;
+        --dark-bg: #262730;
+    }
+    
     html, body, [class*="css"] { font-family: 'Segoe UI', Roboto, sans-serif; }
     
-    /* 2. THE BLACKBOARD BUTTONS */
+    .main-header {
+        text-align: center;
+        padding: 10px;
+        background-color: var(--regents-blue);
+        color: white;
+        border-radius: 15px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    /* 2. REGENTS MODE DASHBOARD */
+    .dashboard {
+        display: flex;
+        justify-content: space-around;
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid #dee2e6;
+        margin-bottom: 20px;
+    }
+    .stat-item { text-align: center; font-weight: bold; color: #495057; }
+
+    /* 3. BLACKBOARD BUTTONS */
     div.stButton > button {
         width: 100%; height: 50px; 
-        border-radius: 10px; 
-        border: 1px solid #4a4a4a;
-        
-        /* DARK MODE COLORS */
+        border-radius: 10px; border: 1px solid #4a4a4a;
         background-color: #262730 !important; 
-        color: #ffffff !important;
-        
-        /* MOBILE OVERRIDES (The Fix) */
-        -webkit-appearance: none !important; /* Stop iPhone from greying it out */
-        appearance: none !important;
-        box-shadow: none !important;
-        
-        font-size: 22px !important; 
-        font-weight: 700 !important;
+        -webkit-appearance: none !important;
         transition: all 0.1s;
     }
+    div.stButton > button * { color: #ffffff !important; font-size: 22px !important; font-weight: 700 !important; }
+    div.stButton > button:active { background-color: #000000 !important; transform: scale(0.98); }
 
-    /* Force EVERYTHING inside the button to be White */
-    div.stButton > button * {
-        color: #ffffff !important;
-    }
-
-    /* Hover Effect */
-    div.stButton > button:hover {
-        border-color: #4dabf7;
-        color: #4dabf7 !important;
-    }
-    div.stButton > button:hover p { color: #4dabf7 !important; }
-
-    div.stButton > button:active { 
-        background-color: #000000 !important; 
-        transform: scale(0.98); 
-    }
-
-    /* 3. STOP COLUMNS FROM STACKING ON MOBILE */
-    [data-testid="column"] { min-width: 1px !important; }
-
-    /* 4. INPUT BOX STYLING */
+    /* 4. INPUTS */
     [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input {
-        background-color: #f1f3f4 !important; 
-        color: #202124 !important; 
-        border: 1px solid #dadce0 !important;
+        background-color: #f1f3f4 !important; color: #202124 !important; border: 1px solid #dadce0 !important;
     }
     [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Current Line"]) input {
-        background-color: #ffffff !important; 
-        color: #000000 !important;
-        border: 2px solid #1a73e8 !important; 
-        box-shadow: 0 1px 6px rgba(32,33,36,0.12);
+        background-color: #ffffff !important; border: 2px solid var(--regents-blue) !important; 
     }
 
-    /* 5. BOXES & NOTES */
-    .workspace-box { padding: 20px; border-radius: 15px; background: white; border: 1px solid #e0e0e0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
-    .success-box { padding: 15px; background: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; margin-top: 10px; }
-    .warning-box { padding: 15px; background: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; margin-top: 10px; }
-    .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; margin-top: 10px; }
-    .hint-box { margin-top: 10px; padding: 10px; background: #e2e3e5; color: #41464b; border-radius: 5px; border-left: 5px solid #0d6efd; font-size: 15px; }
-    .footer-note { font-size: 13px; color: #70757a; text-align: center; margin-top: 30px; padding: 20px; border-top: 1px solid #e0e0e0; }
+    /* 5. FEEDBACK */
+    .success-box { padding: 15px; background: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; }
+    .warning-box { padding: 15px; background: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; }
+    .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- STATE ---
+# --- SESSION STATE ---
 if 'line_prev' not in st.session_state: st.session_state.line_prev = "" 
 if 'line_curr' not in st.session_state: st.session_state.line_curr = ""
-if 'history' not in st.session_state: st.session_state.history = []
-if 'keypad_target' not in st.session_state: st.session_state.keypad_target = "Current Line"
 if 'step_verified' not in st.session_state: st.session_state.step_verified = False
-if 'last_image_bytes' not in st.session_state: st.session_state.last_image_bytes = None
 if 'original_solution_set' not in st.session_state: st.session_state.original_solution_set = None
 
-# --- LOGIC ---
+# REGENTS MODE STATE
+if 'start_time' not in st.session_state: st.session_state.start_time = None
+if 'hint_count' not in st.session_state: st.session_state.hint_count = 0
+if 'problem_solved' not in st.session_state: st.session_state.problem_solved = False
+
+# --- HELPERS ---
 def clear_all():
     st.session_state.line_prev = ""
     st.session_state.line_curr = ""
     st.session_state.step_verified = False
     st.session_state.original_solution_set = None
+    st.session_state.start_time = None
+    st.session_state.hint_count = 0
+    st.session_state.problem_solved = False
 
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
@@ -105,280 +101,135 @@ def next_step():
     st.session_state.step_verified = False
 
 def add_to_input(text_to_add):
-    if st.session_state.keypad_target == "Previous Line": st.session_state.line_prev += text_to_add
-    else: st.session_state.line_curr += text_to_add
+    if st.session_state.start_time is None: st.session_state.start_time = time.time()
+    st.session_state.line_curr += text_to_add
 
 def clean_input(text):
-    text = text.lower()
-    # Normalize the "Fancy" Unicode symbols back to standard math
-    text = text.replace("＋", "+").replace("－", "-")
-    text = text.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
-    text = text.replace("\\", "").replace("`", "")
+    text = text.lower().replace("＋", "+").replace("－", "-")
+    text = text.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "").replace("\\", "").replace("`", "")
     text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
-    text = text.replace(" and ", ",").replace(" or ", ",") 
-    text = text.replace("^", "**").replace("√", "sqrt")
-    text = text.replace("=<", "<=").replace("=>", ">=")
+    text = text.replace(" and ", ",").replace(" or ", ",").replace("^", "**").replace("√", "sqrt").replace("=<", "<=").replace("=>", ">=")
     return text
 
 def parse_for_logic(text):
     transformations = (standard_transformations + (implicit_multiplication_application,))
     try:
-        logic_dict = {'e': E, 'pi': pi, 'diff': diff, 'integrate': integrate, 'limit': limit, 'oo': oo, 'matrix': ImmutableDenseMatrix, 'factorial': factorial, 'mean': my_mean, 'avg': my_mean, 'median': my_median, 'med': my_median, 'stdev': my_stdev}
-        if "<=" in text or ">=" in text or "<" in text or ">" in text: return parse_expr(text, transformations=transformations, evaluate=True, local_dict=logic_dict)
-        elif "=" in text:
+        logic_dict = {'e': E, 'pi': pi, 'diff': diff, 'integrate': integrate, 'limit': limit, 'oo': oo, 'matrix': ImmutableDenseMatrix, 'factorial': factorial, 'mean': statistics.mean, 'median': statistics.median}
+        if "=" in text:
             parts = text.split("=")
             return Eq(parse_expr(parts[0], transformations=transformations, evaluate=True, local_dict=logic_dict), parse_expr(parts[1], transformations=transformations, evaluate=True, local_dict=logic_dict))
-        else: return parse_expr(text, transformations=transformations, evaluate=True, local_dict=logic_dict)
+        return parse_expr(text, transformations=transformations, evaluate=True, local_dict=logic_dict)
     except: return sympy.sympify(text, evaluate=True)
-
-# Stats
-def sanitize_args(args):
-    data = []
-    for a in args:
-        if isinstance(a, (list, tuple, sympy.FiniteSet)): data.extend(a)
-        else: data.append(a)
-    return [float(x) for x in data]
-def to_sympy_number(val):
-    try:
-        val = round(val, 8) 
-        if val == int(val): return sympy.Integer(int(val))
-        return sympy.Float(val)
-    except: return sympy.nan
-def my_mean(*args): return to_sympy_number(statistics.mean(sanitize_args(args)))
-def my_median(*args): return to_sympy_number(statistics.median(sanitize_args(args)))
-def my_stdev(*args): return to_sympy_number(statistics.stdev(sanitize_args(args)))
-
-def flatten_set(s):
-    if s is None: return set()
-    flat_items = []
-    for item in s:
-        if isinstance(item, (tuple, sympy.Tuple)): flat_items.append(item[0])
-        else: flat_items.append(item)
-    return sympy.FiniteSet(*flat_items)
 
 def get_solution_set(text_str):
     clean = clean_input(text_str)
     try:
+        # Check if it's a simple final answer (e.g., "-1" or "2")
+        if not any(c in clean for c in "+*/^=") and not clean.startswith("matrix"):
+            return sympy.FiniteSet(parse_for_logic(clean))
+            
         if "±" in clean:
-            parts = clean.split("±")
-            val = parse_for_logic(parts[1].strip())
-            return flatten_set(sympy.FiniteSet(val, -val))
-        elif clean.count("=") == 1 and "," in clean and "(" not in clean:
-             rhs = clean.split("=")[1]; items = rhs.split(",")
-             vals = [parse_for_logic(i.strip()) for i in items if i.strip()]
-             return flatten_set(sympy.FiniteSet(*vals))
-        elif "," in clean and "=" not in clean and "(" not in clean:
-            items = clean.split(",")
-            vals = [parse_for_logic(i.strip()) for i in items if i.strip()]
-            return flatten_set(sympy.FiniteSet(*vals))
-        equations = []
-        if ";" in clean: raw_eqs = clean.split(";")
-        elif clean.count("=") > 1 and "," in clean: raw_eqs = clean.split(",")
-        else: raw_eqs = [clean]
-        for r in raw_eqs:
-            if r.strip(): equations.append(parse_for_logic(r))
-        all_symbols = set()
-        for eq in equations: all_symbols.update(eq.free_symbols)
-        solve_vars = list(all_symbols)
-        if len(equations) > 1: return flatten_set(solve(equations, solve_vars, set=True)[1])
-        else:
-            expr = equations[0]
-            if expr.is_Number: return flatten_set(sympy.FiniteSet(expr))
-            if isinstance(expr, tuple) or isinstance(expr, ImmutableDenseMatrix): return flatten_set(sympy.FiniteSet(expr))
-            if isinstance(expr, Eq) or not (expr.is_Relational):
-                 if not solve_vars: return flatten_set(sympy.FiniteSet(expr))
-                 return flatten_set(solve(expr, solve_vars, set=True)[1])
-            else:
-                if not solve_vars: return flatten_set(sympy.FiniteSet(expr))
-                return flatten_set(solve(expr, solve_vars[0], set=True)[1])
+            val = parse_for_logic(clean.split("±")[1].strip())
+            return sympy.FiniteSet(val, -val)
+        
+        # Handle lists like "x = 2, -1"
+        if "=" in clean and "," in clean:
+            rhs = clean.split("=")[1]
+            return sympy.FiniteSet(*[parse_for_logic(i.strip()) for i in rhs.split(",") if i.strip()])
+
+        expr = parse_for_logic(clean)
+        all_symbols = list(expr.free_symbols)
+        if not all_symbols: return sympy.FiniteSet(expr)
+        
+        sol = solve(expr, all_symbols, set=True)
+        return sympy.FiniteSet(*sol[1]) if isinstance(sol, tuple) else sol
     except: return None
 
-def check_numerical_equivalence(set_a, set_b, tolerance=1e-8):
+def validate_step(line_a, line_b):
     try:
-        l_a, l_b = list(set_a), list(set_b)
-        if len(l_a) != len(l_b): return False
-        if l_a and (isinstance(l_a[0], ImmutableDenseMatrix) or isinstance(l_b[0], ImmutableDenseMatrix)):
-            if l_a[0] == l_b[0] or l_a[0] == l_b[0].T: return True
-            return False
-        l_a = [complex(i.evalf()) for i in set_a]; l_b = [complex(i.evalf()) for i in set_b]
-        l_a.sort(key=lambda z: (z.real, z.imag)); l_b.sort(key=lambda z: (z.real, z.imag))
-        for a, b in zip(l_a, l_b):
-            if not np.isclose(a, b, atol=tolerance): return False
-        return True
-    except: return False
+        set_A = get_solution_set(line_a)
+        set_B = get_solution_set(line_b)
+        
+        if st.session_state.original_solution_set is None: st.session_state.original_solution_set = set_A
+        
+        # FINAL ANSWER DETECTION
+        clean_b = clean_input(line_b)
+        is_final = False
+        # If it's just a number OR it starts with "var =" and has no ops on RHS
+        if not any(c in clean_b for c in "+*^"):
+            if "=" in clean_b:
+                if not any(c.isalpha() for c in clean_b.split("=")[1]): is_final = True
+            else: is_final = True
 
-def check_common_errors(text_a, text_b):
-    hint = ""
-    try:
-        clean_a, clean_b = clean_input(text_a), clean_input(text_b)
-        if ("<" in clean_a or ">" in clean_a) and ("-" in clean_a):
-            if ("<" in clean_a and "<" in clean_b) or (">" in clean_a and ">" in clean_b): hint = "⚠️ Trap Detected: Did you divide by a negative? Remember to flip the sign!"
-        if "(" in clean_a and ")" in clean_a and "(" not in clean_b: hint = "⚠️ Check Distribution: Did you multiply the term outside to EVERY term inside?"
-    except: pass
-    return hint
-
-def validate_step(line_prev_str, line_curr_str):
-    debug_info = {}
-    try:
-        if not line_prev_str or not line_curr_str: return False, "Empty", "", {}
-        set_A, set_B = get_solution_set(line_prev_str), get_solution_set(line_curr_str)
-        if st.session_state.original_solution_set is None and set_A is not None: st.session_state.original_solution_set = set_A
-        is_final_answer = False
-        if "=" in line_curr_str:
-            if not any(c.isalpha() for c in line_curr_str.split("=")[1].strip()): is_final_answer = True
-        elif not any(c in line_curr_str for c in "+-*/^"): is_final_answer = True
-        if set_A is None or set_B is None: return False, "Parsing Error", "", debug_info
-        if set_A == set_B: 
-            return True, ("Final" if is_final_answer else "Valid"), "", debug_info
+        if set_A == set_B: return True, ("Final" if is_final else "Valid"), ""
+        
         if set_A.issubset(set_B) and set_A != set_B:
-            if is_final_answer and st.session_state.original_solution_set != set_B:
-                return True, "Valid (Warning)", "Wait! You found two potential solutions. Check BOTH in the **original** equation.", debug_info
-            return True, "Valid", "", debug_info
-        if check_numerical_equivalence(set_A, set_B, tolerance=1e-8): return True, ("Final" if is_final_answer else "Valid"), "", debug_info
-        if check_numerical_equivalence(set_A, set_B, tolerance=0.01): return True, "Valid (Rounded)", "Approximation accepted.", debug_info
-        trap_hint = check_common_errors(line_prev_str, line_curr_str)
-        return False, "Invalid", (trap_hint if trap_hint else "Values do not match."), debug_info
-    except: return False, "Error", "", debug_info
+            if is_final and st.session_state.original_solution_set != set_B:
+                return True, "Warning", "Check BOTH solutions in the original equation!"
+            return True, "Valid", ""
+            
+        return False, "Invalid", "Values do not match."
+    except: return False, "Error", ""
 
-def pretty_print(math_str):
-    try:
-        if not math_str: return ""
-        clean = clean_input(math_str)
-        if "matrix" in clean: return latex(sympy.sympify(clean, evaluate=False))
-        return latex(sympy.sympify(clean, evaluate=False))
-    except: return math_str
+# --- UI ---
+st.markdown('<div class="main-header"><h1>🧪 THE LOGIC LAB</h1><p>NYC Regents Step-Checker</p></div>', unsafe_allow_html=True)
 
-def process_image_with_mathpix(image_file, app_id, app_key):
-    try:
-        image_bytes = image_file.getvalue()
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-        data_uri = f"data:image/jpeg;base64,{image_base64}"
-        url = "https://api.mathpix.com/v3/text"
-        headers = {"app_id": app_id, "app_key": app_key, "Content-type": "application/json"}
-        data = {"src": data_uri, "formats": ["asciimath", "text", "latex_simplified"], "data_options": {"include_asciimath": True}}
-        response = requests.post(url, json=data, headers=headers)
-        response.raise_for_status()
-        result = response.json()
-        if 'asciimath' in result: return result['asciimath']
-        elif 'text' in result: return result['text']
-        elif 'latex_simplified' in result: return result['latex_simplified']
-        else: return None
-    except Exception as e: return None
+# DASHBOARD
+col_d1, col_d2, col_d3 = st.columns(3)
+with col_d1:
+    elapsed = 0
+    if st.session_state.start_time and not st.session_state.problem_solved:
+        elapsed = int(time.time() - st.session_state.start_time)
+    st.markdown(f"<div class='stat-item'>⏱️ {elapsed}s</div>", unsafe_allow_html=True)
+with col_d2:
+    st.markdown(f"<div class='stat-item'>💡 {st.session_state.hint_count} Hints</div>", unsafe_allow_html=True)
+with col_d3:
+    if st.button("✨ NEW", key="new_btn"): clear_all(); st.rerun()
 
-def plot_system_interactive(text_str):
-    try:
-        x, y = symbols('x y')
-        clean = clean_input(text_str)
-        equations = []
-        if ";" in clean: raw_eqs = clean.split(";")
-        elif clean.count("=") > 1 and "," in clean: raw_eqs = clean.split(",")
-        else: raw_eqs = [clean]
-        for r in raw_eqs:
-            if r.strip(): equations.append(parse_for_logic(r))
-        fig = go.Figure()
-        x_vals = np.linspace(-10, 10, 100)
-        colors = ['blue', 'orange', 'green']
-        i = 0; has_plotted = False
-        for eq in equations:
-            try:
-                if eq.has(I): continue
-                if 'y' in str(eq):
-                    y_expr = solve(eq, y)
-                    if y_expr:
-                        f_y = sympy.lambdify(x, y_expr[0], "numpy") 
-                        y_vals = f_y(x_vals)
-                        if np.iscomplexobj(y_vals): y_vals = y_vals.real 
-                        fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name=f"Eq {i+1}", line=dict(color=colors[i % 3]))); has_plotted = True; i += 1
-                elif 'x' in str(eq):
-                    x_sol = solve(eq, x)
-                    if x_sol:
-                        val = float(x_sol[0])
-                        fig.add_vline(x=val, line_dash="dash", line_color=colors[i%3], annotation_text=f"x={val}"); has_plotted = True; i += 1
-            except: pass
-        if not has_plotted: return None, None
-        fig.update_layout(xaxis=dict(range=[-10, 10], zeroline=True), yaxis=dict(range=[-10, 10], zeroline=True), height=400, margin=dict(l=20, r=20, t=20, b=20))
-        return fig, []
-    except: return None, None
-
-# --- WEB INTERFACE ---
-col_head1, col_head2 = st.columns([3, 1])
-with col_head1: st.title("🧪 The Logic Lab")
-with col_head2: 
-    st.markdown("<div style='height:15px'></div>", unsafe_allow_html=True)
-    if st.button("✨ New", key="top_reset"): clear_all(); st.rerun()
-
-if st.session_state.original_solution_set: st.markdown("<div style='background:#e3f2fd;padding:8px;border-radius:5px;font-size:14px;color:#0d47a1;margin-bottom:15px'>🧠 Memory Active: Tracking Original Equation</div>", unsafe_allow_html=True)
-
-st.caption("PREVIOUS STEP (Problem)")
-st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="Enter Step 1...", help="Previous Line")
-if st.session_state.line_prev: 
-    st.latex(pretty_print(st.session_state.line_prev))
-    if st.checkbox("Show Graph", key="graph_1"):
-        fig, _ = plot_system_interactive(st.session_state.line_prev)
-        if fig: st.plotly_chart(fig, use_container_width=True)
+# WORKSPACE
+st.text_input("Previous Line", key="line_prev", label_visibility="collapsed", placeholder="Problem...")
+if st.session_state.line_prev: st.latex(latex(parse_expr(clean_input(st.session_state.line_prev), evaluate=False)))
 
 st.markdown("---")
-st.caption("CURRENT STEP (Your Work)")
-st.text_input("Line B", key="line_curr", label_visibility="collapsed", placeholder="Enter Step 2...", help="Current Line")
-if st.session_state.line_curr: st.latex(pretty_print(st.session_state.line_curr))
 
-with st.expander("⌨️ Keypad", expanded=True):
-    st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
-    t1, t2, t3, t4 = st.tabs(["Alg", "Calc", "Stat", "Mat"])
+st.text_input("Current Line", key="line_curr", label_visibility="collapsed", placeholder="Your next step...")
+if st.session_state.line_curr: st.latex(latex(parse_expr(clean_input(st.session_state.line_curr), evaluate=False)))
+
+# KEYPAD
+with st.expander("⌨️ MATH KEYPAD", expanded=True):
+    st.radio("Target:", ["Current Line", "Previous Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
+    t1, t2, t3 = st.tabs(["Algebra", "Calculus", "Advanced"])
     with t1:
         c1, c2, c3, c4 = st.columns(4)
-        c1.button("x²", on_click=add_to_input, args=("^2",), key="a_sq"); c2.button("√", on_click=add_to_input, args=("sqrt(",), key="a_rt")
-        c3.button("(", on_click=add_to_input, args=("(",), key="a_op"); c4.button(")", on_click=add_to_input, args=(")",), key="a_cp")
-        c1.button("x", on_click=add_to_input, args=("x",), key="a_x"); c2.button("÷", on_click=add_to_input, args=("/",), key="a_d")
-        
-        # --- THE FIX: UNICODE CHARACTERS THAT LOOK LIKE MATH BUT ACT LIKE TEXT ---
-        c3.button("＋", on_click=add_to_input, args=("+",), key="a_p"); c4.button("－", on_click=add_to_input, args=("-",), key="a_m")
-        
-    with t2:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.button("d/dx", on_click=add_to_input, args=("diff(",), key="c_df"); c2.button("∫", on_click=add_to_input, args=("integrate(",), key="c_in")
-        c3.button("lim", on_click=add_to_input, args=("limit(",), key="c_lm"); c4.button("∞", on_click=add_to_input, args=("oo",), key="c_oo")
-        c1.button(",", on_click=add_to_input, args=(", ",), key="c_cm"); c2.button("dx", on_click=add_to_input, args=(", x",), key="c_dx")
-    with t3:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.button("Mean", on_click=add_to_input, args=("mean(",), key="s_mn"); c2.button("Med", on_click=add_to_input, args=("median(",), key="s_md")
-        c3.button("Std", on_click=add_to_input, args=("stdev(",), key="s_sd"); c4.button(",", on_click=add_to_input, args=(", ",), key="s_cm")
-    with t4:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.button("Mat", on_click=add_to_input, args=("Matrix([",), key="m_mx"); c2.button("[ ]", on_click=add_to_input, args=("[",), key="m_br")
-        c3.button("]", on_click=add_to_input, args=("])",), key="m_cl"); c4.button("!", on_click=add_to_input, args=("factorial(",), key="m_fa")
+        c1.button("x", on_click=add_to_input, args=("x",), key="k_x"); c2.button("x²", on_click=add_to_input, args=("^2",), key="k_sq")
+        c3.button("＋", on_click=add_to_input, args=("+",), key="k_p"); c4.button("－", on_click=add_to_input, args=("－",), key="k_m")
+        c1.button("√", on_click=add_to_input, args=("sqrt(",), key="k_rt"); c2.button("÷", on_click=add_to_input, args=("/",), key="k_d")
+        c3.button("(", on_click=add_to_input, args=("(",), key="k_o"); c4.button(")", on_click=add_to_input, args=(")",), key="k_c")
 
-c_chk, c_nxt = st.columns([1, 1])
-with c_chk:
-    if st.button("Check Logic", type="primary", key="btn_check"):
-        res, status, hint, _ = validate_step(st.session_state.line_prev, st.session_state.line_curr)
-        if res:
-            st.session_state.step_verified = True
-            if status == "Final": st.balloons(); st.markdown("<div class='success-box'><b>🎉 Problem Solved!</b></div>", unsafe_allow_html=True)
-            elif "Warning" in status: st.markdown(f"<div class='warning-box'><b>⚠️ Valid, but...</b><br>{hint}</div>", unsafe_allow_html=True)
-            else: st.markdown("<div class='success-box'><b>✅ Good Step. Keep going.</b></div>", unsafe_allow_html=True)
-        else:
-            st.session_state.step_verified = False
-            st.markdown("<div class='error-box'><b>❌ Logic Break</b></div>", unsafe_allow_html=True)
-            if hint: st.markdown(f"<div class='hint-box'><b>💡 {hint}</b></div>", unsafe_allow_html=True)
-with c_nxt:
-    if st.session_state.step_verified: st.button("⬇️ Next Step", on_click=next_step, key="btn_nxt")
+# ACTIONS
+if not st.session_state.problem_solved:
+    c_check, c_next = st.columns(2)
+    with c_check:
+        if st.button("CHECK LOGIC", type="primary"):
+            if not st.session_state.start_time: st.session_state.start_time = time.time()
+            ok, status, hint = validate_step(st.session_state.line_prev, st.session_state.line_curr)
+            if ok:
+                st.session_state.step_verified = True
+                if status == "Final":
+                    st.session_state.problem_solved = True
+                    st.balloons()
+                    st.success(f"🏆 Solved in {int(time.time() - st.session_state.start_time)}s!")
+                elif status == "Warning":
+                    st.markdown(f"<div class='warning-box'>⚠️ {hint}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div class='success-box'>✅ Correct! Keep going.</div>", unsafe_allow_html=True)
+            else:
+                st.session_state.hint_count += 1
+                st.markdown(f"<div class='error-box'>❌ Logic Break. Hint: {hint}</div>", unsafe_allow_html=True)
+    with c_next:
+        if st.session_state.step_verified:
+            st.button("NEXT STEP ⬇️", on_click=next_step)
+else:
+    st.success("✨ Problem Complete! Click NEW to start again.")
 
-# --- FOOTER NOTE ---
-st.markdown("""
-<div class='footer-note'>
-    <b>💡 Classroom Tips:</b><br>
-    Click <b>✨ New</b> before starting a different problem to clear the memory.<br>
-    Use the <b>⬇️ Next Step</b> button to move your work down and keep going!
-</div>
-""", unsafe_allow_html=True)
-
-with st.sidebar:
-    st.header("Settings")
-    if st.toggle("📷 Camera"):
-        if "mathpix_app_id" in st.secrets:
-            img_file = st.camera_input("Scan Math")
-            if img_file: pass
-        else: st.warning("Needs API Keys")
-    st.markdown("---")
-    st.toggle("Parent Mode")
+st.markdown("<div class='footer-note'>Built for NYC Math Teachers • The Logic Lab v15.0</div>", unsafe_allow_html=True)
