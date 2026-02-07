@@ -14,15 +14,15 @@ import statistics
 # --- CONFIG MUST BE FIRST ---
 st.set_page_config(page_title="The Logic Lab", page_icon="🧪", layout="centered")
 
-# --- CUSTOM CSS (THE DARK MODE FIX) ---
+# --- CUSTOM CSS (THE VISUAL HIERARCHY) ---
 st.markdown("""
 <style>
-    /* 1. FORCE TEXT VISIBILITY */
+    /* 1. FORCE FONT & COLORS */
     html, body, [class*="css"] {
         font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
     
-    /* 2. CALCULATOR BUTTONS (High Contrast) */
+    /* 2. THUMB-FRIENDLY BUTTONS (High Contrast) */
     div.stButton > button {
         width: 100%;
         height: 50px;
@@ -30,37 +30,53 @@ st.markdown("""
         font-weight: 600;
         border-radius: 12px;
         border: 1px solid #dfe1e5;
-        background-color: #f8f9fa !important; /* Force White Background */
-        color: #000000 !important;          /* FORCE BLACK TEXT */
+        background-color: #f8f9fa !important; 
+        color: #000000 !important;          
         transition: all 0.2s;
     }
     div.stButton > button:active {
         background-color: #e2e6ea !important;
         transform: scale(0.98);
     }
+
+    /* 3. VISUAL HIERARCHY FOR INPUTS */
+    /* Target the FIRST text input (Previous Line) - Reference Style */
+    div[data-testid="stVerticalBlock"] > div:nth-of-type(1) div[data-testid="stTextInput"] input {
+        background-color: #f8f9fa;
+        border: 2px solid #e9ecef;
+        color: #495057;
+    }
     
-    /* 3. PRIMARY ACTION BUTTONS (Green) */
-    /* We use a specific selector to target the 'Check Logic' button if possible, 
-       but Streamlit generic buttons are hard to target individually. 
-       This keeps them consistent with the keypad. */
+    /* Target the SECOND text input (Current Line) - Active Style */
+    /* Note: Streamlit structure varies, this targets the generic input class to ensure visibility */
+    div[data-testid="stTextInput"] input {
+        font-size: 18px;
+        padding: 10px;
+        border-radius: 8px;
+    }
     
-    /* 4. THE WORKSPACE (Clean Box) */
+    /* Force the "Current Line" to pop (using focus-within simulation) */
+    div[data-testid="stVerticalBlock"] > div:nth-of-type(2) div[data-testid="stTextInput"] input {
+        background-color: #ffffff;
+        border: 2px solid #4dabf7; /* Active Blue Border */
+        box-shadow: 0 0 8px rgba(77, 171, 247, 0.2);
+    }
+
+    /* 4. FEEDBACK BOXES */
+    .success-box { padding: 15px; background-color: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; margin-top: 10px;}
+    .warning-box { padding: 15px; background-color: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; margin-top: 10px;}
+    .error-box { padding: 15px; background-color: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; margin-top: 10px;}
+    .hint-box { margin-top: 10px; padding: 10px; background-color: #e2e3e5; color: #41464b; border-radius: 5px; border-left: 5px solid #0d6efd; font-size: 15px; }
+
+    /* 5. WORKSPACE CONTAINER */
     .workspace-box {
         padding: 20px;
         border-radius: 15px;
-        background-color: #ffffff; /* Always White Background */
+        background-color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         border: 1px solid #e0e0e0;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         margin-bottom: 20px;
-        color: #000000 !important; /* Force Black Text inside box */
     }
-    
-    /* 5. FEEDBACK BOXES */
-    .success-box { padding: 15px; background-color: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; }
-    .warning-box { padding: 15px; background-color: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; }
-    .error-box { padding: 15px; background-color: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; }
-    .hint-box { margin-top: 10px; padding: 10px; background-color: #e2e3e5; color: #41464b; border-radius: 5px; border-left: 5px solid #0d6efd; font-size: 15px; }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -73,7 +89,7 @@ if 'step_verified' not in st.session_state: st.session_state.step_verified = Fal
 if 'last_image_bytes' not in st.session_state: st.session_state.last_image_bytes = None
 if 'original_solution_set' not in st.session_state: st.session_state.original_solution_set = None
 
-# --- CORE LOGIC (UNCHANGED) ---
+# --- CORE LOGIC (v12.3 ENGINE) ---
 def clear_all():
     st.session_state.line_prev = ""
     st.session_state.line_curr = ""
@@ -247,6 +263,47 @@ def process_image_with_mathpix(image_file, app_id, app_key):
         else: return None
     except Exception as e: return None
 
+def plot_system_interactive(text_str):
+    try:
+        x, y = symbols('x y')
+        clean = clean_input(text_str)
+        equations = []
+        if ";" in clean: raw_eqs = clean.split(";")
+        else:
+            if clean.count("=") > 1 and "," in clean: raw_eqs = clean.split(",")
+            else: raw_eqs = [clean]
+        for r in raw_eqs:
+            if r.strip(): equations.append(parse_for_logic(r))
+        fig = go.Figure()
+        x_vals = np.linspace(-10, 10, 100)
+        colors = ['blue', 'orange', 'green']
+        i = 0
+        has_plotted = False
+        for eq in equations:
+            try:
+                if eq.has(I): continue
+                if 'y' in str(eq):
+                    y_expr = solve(eq, y)
+                    if y_expr:
+                        f_y = sympy.lambdify(x, y_expr[0], "numpy") 
+                        y_vals = f_y(x_vals)
+                        if np.iscomplexobj(y_vals): y_vals = y_vals.real 
+                        fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name=f"Eq {i+1}", line=dict(color=colors[i % 3])))
+                        has_plotted = True
+                        i += 1
+                elif 'x' in str(eq):
+                    x_sol = solve(eq, x)
+                    if x_sol:
+                        val = float(x_sol[0])
+                        fig.add_vline(x=val, line_dash="dash", line_color=colors[i%3], annotation_text=f"x={val}")
+                        has_plotted = True
+                        i += 1
+            except: pass
+        if not has_plotted: return None, None
+        fig.update_layout(xaxis=dict(range=[-10, 10], zeroline=True), yaxis=dict(range=[-10, 10], zeroline=True), height=400, margin=dict(l=20, r=20, t=20, b=20))
+        return fig, []
+    except: return None, None
+
 # --- WEB INTERFACE START ---
 col_head1, col_head2 = st.columns([3, 1])
 with col_head1: st.title("🧪 The Logic Lab")
@@ -259,16 +316,47 @@ if st.session_state.original_solution_set:
 
 # --- WORKSPACE ---
 st.markdown('<div class="workspace-box">', unsafe_allow_html=True)
-col_a, col_b = st.columns(2)
-with col_a:
-    st.caption("PREVIOUS STEP")
-    st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="Enter Step 1...")
-    if st.session_state.line_prev: st.latex(pretty_print(st.session_state.line_prev))
-with col_b:
-    st.caption("CURRENT STEP")
-    st.text_input("Line B", key="line_curr", label_visibility="collapsed", placeholder="Enter Step 2...")
-    if st.session_state.line_curr: st.latex(pretty_print(st.session_state.line_curr))
+st.caption("PREVIOUS STEP (Problem)")
+st.text_input("Line A", key="line_prev", label_visibility="collapsed", placeholder="Enter Step 1...")
+if st.session_state.line_prev: 
+    st.latex(pretty_print(st.session_state.line_prev))
+    if st.checkbox("Show Graph", key="graph_1"):
+        fig, _ = plot_system_interactive(st.session_state.line_prev)
+        if fig: st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("---")
+st.caption("CURRENT STEP (Your Work)")
+st.text_input("Line B", key="line_curr", label_visibility="collapsed", placeholder="Enter Step 2...")
+if st.session_state.line_curr: st.latex(pretty_print(st.session_state.line_curr))
 st.markdown('</div>', unsafe_allow_html=True)
+
+# --- KEYPAD ---
+with st.expander("⌨️ Keypad", expanded=True):
+    st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
+    t1, t2, t3, t4 = st.tabs(["Alg", "Calc", "Stat", "Mat"])
+    
+    with t1:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.button("x²", on_click=add_to_input, args=("^2",)); c2.button("√", on_click=add_to_input, args=("sqrt(",)); 
+        c3.button("(", on_click=add_to_input, args=("(",)); c4.button(")", on_click=add_to_input, args=(")",))
+        c1.button("x", on_click=add_to_input, args=("x",)); c2.button("÷", on_click=add_to_input, args=("/",)); 
+        c3.button("+", on_click=add_to_input, args=("+",)); c4.button("-", on_click=add_to_input, args=("-",))
+        
+    with t2:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.button("d/dx", on_click=add_to_input, args=("diff(",)); c2.button("∫", on_click=add_to_input, args=("integrate(",))
+        c3.button("lim", on_click=add_to_input, args=("limit(",)); c4.button("∞", on_click=add_to_input, args=("oo",))
+        c1.button(",", on_click=add_to_input, args=(", ",)); c2.button("dx", on_click=add_to_input, args=(", x",))
+
+    with t3:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.button("Mean", on_click=add_to_input, args=("mean(",)); c2.button("Med", on_click=add_to_input, args=("median(",))
+        c3.button("Std", on_click=add_to_input, args=("stdev(",)); c4.button(",", on_click=add_to_input, args=(", ",))
+
+    with t4:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.button("Mat", on_click=add_to_input, args=("Matrix([",)); c2.button("[ ]", on_click=add_to_input, args=("[",))
+        c3.button("]", on_click=add_to_input, args=("])",)); c4.button("!", on_click=add_to_input, args=("factorial(",))
 
 # --- ACTIONS ---
 c_chk, c_nxt = st.columns([1, 1])
@@ -288,35 +376,6 @@ with c_chk:
 with c_nxt:
     if st.session_state.step_verified: st.button("⬇️ Next Step", on_click=next_step)
 
-st.markdown("---")
-
-# --- KEYPAD ---
-with st.expander("⌨️ Keypad", expanded=True):
-    st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
-    t1, t2, t3, t4 = st.tabs(["Alg", "Calc", "Stat", "Mat"])
-    
-    with t1:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.button("x²", on_click=add_to_input, args=("^2",)); c2.button("√", on_click=add_to_input, args=("sqrt(",)); 
-        c3.button("(", on_click=add_to_input, args=("(",)); c4.button(")", on_click=add_to_input, args=(")",))
-        c1.button("x", on_click=add_to_input, args=("x",)); c2.button("÷", on_click=add_to_input, args=("/",)); 
-        c3.button("+", on_click=add_to_input, args=("+",)); c4.button("-", on_click=add_to_input, args=("-",))
-        
-    with t2:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.button("d/dx", on_click=add_to_input, args=("diff(",)); c2.button("∫", on_click=add_to_input, args=("integrate(",))
-        c3.button("lim", on_click=add_to_input, args=("limit(",)); c4.button("∞", on_click=add_to_input, args=("oo",))
-
-    with t3:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.button("Mean", on_click=add_to_input, args=("mean(",)); c2.button("Med", on_click=add_to_input, args=("median(",))
-        c3.button("Std", on_click=add_to_input, args=("stdev(",)); c4.button(",", on_click=add_to_input, args=(", ",))
-
-    with t4:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.button("Mat", on_click=add_to_input, args=("Matrix([",)); c2.button("[ ]", on_click=add_to_input, args=("[",))
-        c3.button("]", on_click=add_to_input, args=("])",)); c4.button("!", on_click=add_to_input, args=("factorial(",))
-
 # --- SIDEBAR & CAM ---
 with st.sidebar:
     st.header("Settings")
@@ -324,7 +383,7 @@ with st.sidebar:
         if "mathpix_app_id" in st.secrets:
             img_file = st.camera_input("Scan Math")
             if img_file:
-                # Basic OCR processing (placeholder)
+                # Basic OCR logic
                 pass
         else:
             st.warning("Needs API Keys")
