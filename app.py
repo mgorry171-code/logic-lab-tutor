@@ -43,6 +43,7 @@ st.markdown("""
     .warning-box { padding: 15px; background: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; }
     .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; }
     .leaderboard { margin-top: 30px; padding: 15px; background: #fff; border-radius: 10px; border: 1px solid #e0e0e0; }
+    .footer-note { font-size: 13px; color: #70757a; text-align: center; margin-top: 30px; padding: 20px; border-top: 1px solid #e0e0e0; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -240,4 +241,4 @@ if st.session_state.high_scores:
 with st.expander("🛠️ Debug Details"):
     st.write(st.session_state.debug_log)
     
-st.markdown("<div class='footer-note'>Built for NYC Math Teachers • The Logic Lab v15.3</div>", uns)
+st.markdown("<div class='footer-note'>Built for NYC Math Teachers • The Logic Lab v15.3</div>", unsafe_allow_html=True)
