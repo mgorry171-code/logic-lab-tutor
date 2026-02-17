@@ -82,7 +82,7 @@ if 'problem_solved' not in st.session_state: st.session_state.problem_solved = F
 if 'high_scores' not in st.session_state: st.session_state.high_scores = []
 if 'last_processed_buffer' not in st.session_state: st.session_state.last_processed_buffer = None
 if 'debug_log' not in st.session_state: st.session_state.debug_log = {}
-if 'camera_key' not in st.session_state: st.session_state.camera_key = 0 # KEY TO RESET CAMERA
+if 'camera_key' not in st.session_state: st.session_state.camera_key = 0
 
 # --- HELPERS ---
 def clear_all():
@@ -95,7 +95,7 @@ def clear_all():
     st.session_state.problem_solved = False
     st.session_state.last_processed_buffer = None
     st.session_state.debug_log = {}
-    st.session_state.camera_key += 1 # INCREMENT KEY TO FORCE RESET
+    st.session_state.camera_key += 1
 
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
@@ -165,23 +165,15 @@ def get_solution_set(text_str):
         return sol
     except: return None
 
-# --- NEW: STRICT FINAL CHECKER ---
 def check_is_final(text_str):
     try:
         clean = clean_input(text_str)
-        if "," in clean: return True # "x=1, x=2" is final
+        if "," in clean: return True
         expr = parse_for_logic(clean)
-        
-        # Check if it is a simple number "5"
         if expr.is_number: return True
-        
-        # Check if it is "x = number"
         if isinstance(expr, Eq):
-            # LHS is Symbol AND RHS is Number (x = 2)
             if expr.lhs.is_Symbol and expr.rhs.is_number: return True
-            # RHS is Symbol AND LHS is Number (2 = x)
             if expr.rhs.is_Symbol and expr.lhs.is_number: return True
-            
         return False
     except: return False
 
@@ -208,10 +200,7 @@ def validate_step(line_a, line_b):
         set_B = get_solution_set(line_b)
         st.session_state.debug_log = {"Set A": str(set_A), "Set B": str(set_B)}
         if st.session_state.original_solution_set is None: st.session_state.original_solution_set = set_A
-        
-        # USE NEW STRICT CHECKER
         is_final = check_is_final(line_b)
-        
         if set_A == set_B: return True, ("Final" if is_final else "Valid"), ""
         if set_A and set_B and set_A.issubset(set_B):
             if is_final: return True, "Warning", "Wait! You found two potential solutions. Check BOTH in the **original** equation."
@@ -236,7 +225,6 @@ with st.sidebar:
     use_camera = st.toggle("📷 Camera Mode")
     if use_camera:
         st.info("Snap a photo of a math problem.")
-        # DYNAMIC KEY FORCES RESET ON NEW
         img_file = st.camera_input("Scan Math", key=f"camera_{st.session_state.camera_key}")
         if img_file:
             current_buffer = img_file.getvalue()
@@ -258,6 +246,19 @@ with st.sidebar:
                     st.session_state.last_processed_buffer = current_buffer
                     st.rerun()
 
+    st.markdown("---")
+    # NEW: INSTALL INSTRUCTIONS
+    with st.expander("📱 Install App"):
+        st.markdown("""
+        **iOS (iPhone/iPad):**
+        1. Tap the Share button (square with arrow).
+        2. Scroll down and tap **"Add to Home Screen"**.
+        
+        **Android / Chrome:**
+        1. Tap the Menu (three dots).
+        2. Tap **"Install App"** or **"Add to Home Screen"**.
+        """)
+        
     st.markdown("---")
     if st.button("🗑️ Clear Leaderboard"): st.session_state.high_scores = []; st.rerun()
 
