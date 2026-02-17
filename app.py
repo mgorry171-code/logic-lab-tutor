@@ -46,7 +46,7 @@ if 'start_time' not in st.session_state: st.session_state.start_time = None
 if 'hint_count' not in st.session_state: st.session_state.hint_count = 0
 if 'problem_solved' not in st.session_state: st.session_state.problem_solved = False
 if 'high_scores' not in st.session_state: st.session_state.high_scores = []
-if 'debug_log' not in st.session_state: st.session_state.debug_log = {}
+if 'last_processed_buffer' not in st.session_state: st.session_state.last_processed_buffer = None # FIX FOR INFINITE LOOP
 
 # --- HELPERS ---
 def clear_all():
@@ -57,7 +57,7 @@ def clear_all():
     st.session_state.start_time = None
     st.session_state.hint_count = 0
     st.session_state.problem_solved = False
-    st.session_state.debug_log = {}
+    st.session_state.last_processed_buffer = None # Reset camera memory
 
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
@@ -71,7 +71,6 @@ def add_to_input(text_to_add):
 
 def clean_input(text):
     text = text.lower().replace("＋", "+").replace("－", "-")
-    # THE JANITOR: Clean up Mathpix wrappers
     text = text.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
     text = text.replace("\\", "").replace("`", "")
     text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
@@ -140,8 +139,6 @@ def process_image_with_mathpix(image_file, app_id, app_key):
         response = requests.post(url, json=data, headers=headers)
         response.raise_for_status()
         result = response.json()
-        
-        # Priority: LaTeX Simplified -> AsciiMath -> Text
         if 'latex_simplified' in result: return result['latex_simplified']
         elif 'asciimath' in result: return result['asciimath']
         elif 'text' in result: return result['text']
@@ -152,7 +149,6 @@ def validate_step(line_a, line_b):
     try:
         set_A = get_solution_set(line_a)
         set_B = get_solution_set(line_b)
-        st.session_state.debug_log = {"Set A": str(set_A), "Set B": str(set_B)}
         if st.session_state.original_solution_set is None: st.session_state.original_solution_set = set_A
         clean_b = clean_input(line_b)
         is_final = False
@@ -162,9 +158,7 @@ def validate_step(line_a, line_b):
             if is_final: return True, "Warning", "Wait! You found two potential solutions. Check BOTH in the **original** equation."
             return True, "Valid", ""
         return False, "Invalid", "Values do not match."
-    except Exception as e: 
-        st.session_state.debug_log["Error"] = str(e)
-        return False, "Error", str(e)
+    except Exception as e: return False, "Error", str(e)
 
 # --- UI START ---
 st.markdown('<div class="main-header"><h1>🦉 THE LOGIC LAB</h1><p>AI Math Step-Checker</p></div>', unsafe_allow_html=True)
@@ -178,30 +172,35 @@ with st.sidebar:
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode")
     st.markdown("---")
     
-    # CAMERA LOGIC WITH CLEANER
+    # STABLE CAMERA LOGIC
     use_camera = st.toggle("📷 Camera Mode")
     if use_camera:
         st.info("Snap a photo of a math problem.")
         img_file = st.camera_input("Scan Math")
         
         if img_file:
-            # Check if API keys exist
-            if "mathpix_app_id" in st.secrets:
-                with st.spinner("Analyzing with Mathpix..."):
-                    scanned_math = process_image_with_mathpix(img_file, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
-                    if scanned_math:
-                        # CLEAN THE RESULT
-                        clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
-                        st.session_state.line_prev = clean_math
-                        st.success(f"Math Detected: {clean_math}")
-                        st.rerun()
-                    else: st.error("Could not read math.")
-            else:
-                # DEMO MODE IF NO KEYS
-                st.warning("⚠️ No API Keys. Simulating scan...")
-                time.sleep(1)
-                st.session_state.line_prev = "4x + 2x = 12"
-                st.rerun()
+            # CHECK: Did we already process this exact image?
+            current_buffer = img_file.getvalue()
+            if st.session_state.last_processed_buffer != current_buffer:
+                # NEW IMAGE DETECTED - PROCESS IT ONCE
+                if "mathpix_app_id" in st.secrets:
+                    with st.spinner("Analyzing with Mathpix..."):
+                        scanned_math = process_image_with_mathpix(img_file, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
+                        if scanned_math:
+                            # Clean and Store
+                            clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
+                            st.session_state.line_prev = clean_math
+                            st.session_state.last_processed_buffer = current_buffer # LOCK IT
+                            st.success(f"Math Detected: {clean_math}")
+                            st.rerun() # Refresh once to show result
+                        else: st.error("Could not read math.")
+                else:
+                    # DEMO MODE
+                    st.warning("⚠️ No API Keys. Simulating scan...")
+                    time.sleep(1)
+                    st.session_state.line_prev = "4x + 2x = 12"
+                    st.session_state.last_processed_buffer = current_buffer
+                    st.rerun()
 
     st.markdown("---")
     if st.button("🗑️ Clear Leaderboard"): st.session_state.high_scores = []; st.rerun()
