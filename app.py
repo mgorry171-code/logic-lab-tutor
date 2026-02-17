@@ -13,12 +13,13 @@ import base64
 import statistics
 
 # --- CONFIG ---
-st.set_page_config(page_title="The Logic Lab", page_icon="🧠", layout="centered")
+# CHANGED TO OWL ICON
+st.set_page_config(page_title="The Logic Lab", page_icon="🦉", layout="centered")
 
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    /* 1. NEW THEME: TEAL & GOLD */
+    /* TEAL & GOLD THEME */
     :root { 
         --brand-color: #008080;  /* Teal */
         --accent-color: #DAA520; /* Gold */
@@ -179,7 +180,8 @@ def validate_step(line_a, line_b):
         return False, "Error", str(e)
 
 # --- UI START ---
-st.markdown('<div class="main-header"><h1>🧠 THE LOGIC LAB</h1><p>AI Math Step-Checker</p></div>', unsafe_allow_html=True)
+# CHANGED HEADER ICON TO OWL
+st.markdown('<div class="main-header"><h1>🦉 THE LOGIC LAB</h1><p>AI Math Step-Checker</p></div>', unsafe_allow_html=True)
 
 with st.sidebar:
     st.header("⚙️ Settings")
@@ -253,5 +255,4 @@ if st.session_state.high_scores:
     st.table(pd.DataFrame(st.session_state.high_scores))
     st.markdown("</div>", unsafe_allow_html=True)
 
-# 4. UPDATED FOOTER WITH NEW SLOGAN
 st.markdown("<div class='footer-note'>Built by Teachers • Powered by Logic</div>", unsafe_allow_html=True)
