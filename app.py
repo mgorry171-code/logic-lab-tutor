@@ -1,3 +1,20 @@
+You have caught a critical missing piece! In my excitement to upgrade the "Paint Job" (Colors/UI) and the "Transmission" (Logic Engine), I accidentally left the "Eyes" (The Mathpix OCR function) out of the code.
+
+Currently, v15.8 shows the camera button, but it doesn't actually send the image to Mathpix to be read.
+
+The Fix (v15.9): The "All Systems Go" Edition
+I am restoring the process_image_with_mathpix function and connecting it to the camera button.
+
+How it works: If you have your mathpix_app_id and mathpix_app_key saved in your Streamlit Secrets, taking a photo will now automatically fill the "Previous Line" box with the math from the picture.
+
+Action: Update app.py to v15.9
+Edit app.py in GitHub.
+
+Delete All and paste this code.
+
+Commit and Refresh.
+
+Python
 import streamlit as st
 import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral, ImmutableDenseMatrix, FiniteSet
@@ -13,7 +30,6 @@ import base64
 import statistics
 
 # --- CONFIG ---
-# CHANGED TO OWL ICON
 st.set_page_config(page_title="The Logic Lab", page_icon="🦉", layout="centered")
 
 # --- CUSTOM CSS ---
@@ -161,6 +177,23 @@ def get_solution_set(text_str):
         return sol
     except: return None
 
+# --- OCR ENGINE (RESTORED) ---
+def process_image_with_mathpix(image_file, app_id, app_key):
+    try:
+        image_bytes = image_file.getvalue()
+        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        data_uri = f"data:image/jpeg;base64,{image_base64}"
+        url = "https://api.mathpix.com/v3/text"
+        headers = {"app_id": app_id, "app_key": app_key, "Content-type": "application/json"}
+        data = {"src": data_uri, "formats": ["asciimath", "text", "latex_simplified"], "data_options": {"include_asciimath": True}}
+        response = requests.post(url, json=data, headers=headers)
+        response.raise_for_status()
+        result = response.json()
+        if 'asciimath' in result: return result['asciimath']
+        elif 'text' in result: return result['text']
+        else: return None
+    except Exception as e: return None
+
 def validate_step(line_a, line_b):
     try:
         set_A = get_solution_set(line_a)
@@ -180,7 +213,6 @@ def validate_step(line_a, line_b):
         return False, "Error", str(e)
 
 # --- UI START ---
-# CHANGED HEADER ICON TO OWL
 st.markdown('<div class="main-header"><h1>🦉 THE LOGIC LAB</h1><p>AI Math Step-Checker</p></div>', unsafe_allow_html=True)
 
 with st.sidebar:
@@ -188,8 +220,28 @@ with st.sidebar:
     regents_mode = st.toggle("🏆 Challenge Mode", value=False)
     if regents_mode: st.caption("Timer & Hints Enabled")
     else: st.caption("Study Mode (Relaxed)")
+    
     st.markdown("---")
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode")
+    
+    st.markdown("---")
+    # CAMERA LOGIC RESTORED
+    use_camera = st.toggle("📷 Camera Mode")
+    if use_camera:
+        st.info("Snap a photo of a math problem.")
+        if "mathpix_app_id" in st.secrets:
+            img_file = st.camera_input("Scan Math")
+            if img_file:
+                with st.spinner("Analyzing with Mathpix..."):
+                    scanned_math = process_image_with_mathpix(img_file, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
+                    if scanned_math:
+                        st.session_state.line_prev = scanned_math
+                        st.success("Math Detected!")
+                        st.rerun()
+                    else: st.error("Could not read math.")
+        else:
+            st.warning("⚠️ API Keys Missing in Secrets")
+
     st.markdown("---")
     if st.button("🗑️ Clear Leaderboard"): st.session_state.high_scores = []; st.rerun()
 
