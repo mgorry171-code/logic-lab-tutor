@@ -13,23 +13,34 @@ import base64
 import statistics
 
 # --- CONFIG ---
-st.set_page_config(page_title="The Logic Lab", page_icon="🧪", layout="centered")
+# 1. CHANGED ICON TO BRAIN AND TITLE TO UNIVERSAL
+st.set_page_config(page_title="The Logic Lab", page_icon="🧠", layout="centered")
 
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    :root { --regents-blue: #1a73e8; }
+    /* 2. NEW BRAND COLOR: MODERN PURPLE (You can change this hex code to anything!) */
+    :root { --brand-color: #6c5ce7; }
+    
     html, body, [class*="css"] { font-family: 'Segoe UI', Roboto, sans-serif; }
-    .main-header { text-align: center; padding: 15px; background-color: var(--regents-blue); color: white; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    
+    .main-header { 
+        text-align: center; 
+        padding: 15px; 
+        background-color: var(--brand-color); 
+        color: white; 
+        border-radius: 15px; 
+        margin-bottom: 20px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+    }
     h1 { font-size: 24px !important; margin: 0 !important; }
     p { margin: 0 !important; }
     
-    /* BIGGER STATS FOR REGENTS MODE */
     .stat-item { 
         text-align: center; 
         font-weight: 800; 
         color: #495057; 
-        font-size: 26px; /* Bigger! */
+        font-size: 26px; 
         margin-top: 5px;
     }
     
@@ -44,7 +55,7 @@ st.markdown("""
         background-color: #f1f3f4 !important; color: #202124 !important; border: 1px solid #dadce0 !important;
     }
     [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Current Line"]) input {
-        background-color: #ffffff !important; border: 2px solid var(--regents-blue) !important; 
+        background-color: #ffffff !important; border: 2px solid var(--brand-color) !important; 
     }
 
     .success-box { padding: 15px; background: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; }
@@ -118,7 +129,6 @@ def parse_for_logic(text):
 def get_solution_set(text_str):
     clean = clean_input(text_str)
     try:
-        # 1. Handle explicit lists "2, -1" or "x=2, -1" or "x=2, x=-1"
         if "," in clean:
             if "=" in clean:
                 parts = clean.split(",")
@@ -129,19 +139,13 @@ def get_solution_set(text_str):
                 return FiniteSet(*vals)
             else:
                 return FiniteSet(*[parse_for_logic(i.strip()) for i in clean.split(",") if i.strip()])
-
-        # 2. Handle Plus/Minus "±"
         if "±" in clean:
             val = parse_for_logic(clean.split("±")[1].strip())
             return FiniteSet(val, -val)
-
-        # 3. Standard Solve with UNWRAPPER
         expr = parse_for_logic(clean)
         all_symbols = list(expr.free_symbols)
         if not all_symbols: return FiniteSet(expr)
-        
         sol = solve(expr, all_symbols, set=True)
-        # FIX: The "Unwrapper" - flattens tuples like (2,) into just 2
         flat_results = []
         if isinstance(sol, tuple):
             for s in sol[1]:
@@ -155,59 +159,42 @@ def validate_step(line_a, line_b):
     try:
         set_A = get_solution_set(line_a)
         set_B = get_solution_set(line_b)
-        
         st.session_state.debug_log = {"Set A": str(set_A), "Set B": str(set_B)}
-        
         if st.session_state.original_solution_set is None: st.session_state.original_solution_set = set_A
-        
         clean_b = clean_input(line_b)
         is_final = False
-        if not any(c in clean_b for c in "+*^") and not clean_b.startswith("matrix"):
-            is_final = True
-
+        if not any(c in clean_b for c in "+*^") and not clean_b.startswith("matrix"): is_final = True
         if set_A == set_B: return True, ("Final" if is_final else "Valid"), ""
-        
         if set_A and set_B and set_A.issubset(set_B):
-            if is_final:
-                return True, "Warning", "Wait! You found two potential solutions. Check BOTH in the **original** equation."
+            if is_final: return True, "Warning", "Wait! You found two potential solutions. Check BOTH in the **original** equation."
             return True, "Valid", ""
-            
         return False, "Invalid", "Values do not match."
     except Exception as e: 
         st.session_state.debug_log["Error"] = str(e)
         return False, "Error", str(e)
 
 # --- UI START ---
-st.markdown('<div class="main-header"><h1>🧪 THE LOGIC LAB</h1><p>NYC Regents Step-Checker</p></div>', unsafe_allow_html=True)
+# 3. UPDATED HEADER TEXT
+st.markdown('<div class="main-header"><h1>🧠 THE LOGIC LAB</h1><p>AI Math Step-Checker</p></div>', unsafe_allow_html=True)
 
 with st.sidebar:
     st.header("⚙️ Settings")
-    # THE TOGGLE
-    regents_mode = st.toggle("🏆 Regents Mode", value=False)
-    if regents_mode:
-        st.caption("Timer & Hints Enabled")
-    else:
-        st.caption("Study Mode (Relaxed)")
-        
+    regents_mode = st.toggle("🏆 Challenge Mode", value=False) # Renamed from Regents Mode
+    if regents_mode: st.caption("Timer & Hints Enabled")
+    else: st.caption("Study Mode (Relaxed)")
     st.markdown("---")
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode")
-    
     st.markdown("---")
-    if st.button("🗑️ Clear Leaderboard"):
-        st.session_state.high_scores = []; st.rerun()
+    if st.button("🗑️ Clear Leaderboard"): st.session_state.high_scores = []; st.rerun()
 
-# DASHBOARD (CONDITIONAL)
+# DASHBOARD
 col_d1, col_d2, col_d3 = st.columns(3)
-
-# Only show stats if Regents Mode is ON
 if regents_mode:
     with col_d1:
         elapsed = int(time.time() - st.session_state.start_time) if st.session_state.start_time and not st.session_state.problem_solved else 0
         st.markdown(f"<div class='stat-item'>⏱️ {elapsed}s</div>", unsafe_allow_html=True)
     with col_d2: 
         st.markdown(f"<div class='stat-item'>💡 {st.session_state.hint_count}</div>", unsafe_allow_html=True)
-
-# The "NEW" button is always visible in the 3rd column
 with col_d3:
     if st.button("✨ NEW", key="new_btn"): clear_all(); st.rerun()
 
@@ -247,9 +234,7 @@ if not st.session_state.problem_solved:
                 if status == "Final":
                     st.session_state.problem_solved = True
                     final_time = int(time.time() - st.session_state.start_time)
-                    # Only save to leaderboard if in Regents Mode
-                    if regents_mode:
-                        st.session_state.high_scores.append({"Time": f"{final_time}s", "Hints": st.session_state.hint_count, "Date": datetime.datetime.now().strftime("%H:%M")})
+                    if regents_mode: st.session_state.high_scores.append({"Time": f"{final_time}s", "Hints": st.session_state.hint_count, "Date": datetime.datetime.now().strftime("%H:%M")})
                     st.balloons(); st.success(f"🏆 Solved in {final_time}s!")
                 elif status == "Warning": st.markdown(f"<div class='warning-box'>⚠️ {hint}</div>", unsafe_allow_html=True)
                 else: st.markdown("<div class='success-box'>✅ Correct! Keep going.</div>", unsafe_allow_html=True)
@@ -265,7 +250,5 @@ if st.session_state.high_scores:
     st.table(pd.DataFrame(st.session_state.high_scores))
     st.markdown("</div>", unsafe_allow_html=True)
 
-with st.expander("🛠️ Debug Details"):
-    st.write(st.session_state.debug_log)
-    
-st.markdown("<div class='footer-note'>Built for NYC Math Teachers • The Logic Lab v15.4</div>", unsafe_allow_html=True)
+# 4. UPDATED FOOTER
+st.markdown("<div class='footer-note'>Built by Teachers • The Logic Lab v15.5</div>", unsafe_allow_html=True)
