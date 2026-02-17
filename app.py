@@ -82,6 +82,7 @@ if 'problem_solved' not in st.session_state: st.session_state.problem_solved = F
 if 'high_scores' not in st.session_state: st.session_state.high_scores = []
 if 'last_processed_buffer' not in st.session_state: st.session_state.last_processed_buffer = None
 if 'debug_log' not in st.session_state: st.session_state.debug_log = {}
+if 'camera_key' not in st.session_state: st.session_state.camera_key = 0 # KEY TO RESET CAMERA
 
 # --- HELPERS ---
 def clear_all():
@@ -94,6 +95,7 @@ def clear_all():
     st.session_state.problem_solved = False
     st.session_state.last_processed_buffer = None
     st.session_state.debug_log = {}
+    st.session_state.camera_key += 1 # INCREMENT KEY TO FORCE RESET
 
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
@@ -234,7 +236,8 @@ with st.sidebar:
     use_camera = st.toggle("📷 Camera Mode")
     if use_camera:
         st.info("Snap a photo of a math problem.")
-        img_file = st.camera_input("Scan Math")
+        # DYNAMIC KEY FORCES RESET ON NEW
+        img_file = st.camera_input("Scan Math", key=f"camera_{st.session_state.camera_key}")
         if img_file:
             current_buffer = img_file.getvalue()
             if st.session_state.last_processed_buffer != current_buffer:
