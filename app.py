@@ -18,17 +18,51 @@ st.set_page_config(page_title="The Logic Lab", page_icon="🦉", layout="centere
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    :root { --brand-color: #008080; --accent-color: #DAA520; }
+    /* TEAL & GOLD THEME */
+    :root { 
+        --brand-color: #008080;  /* Teal */
+        --accent-color: #DAA520; /* Gold */
+    }
+    
     html, body, [class*="css"] { font-family: 'Segoe UI', Roboto, sans-serif; }
-    .main-header { text-align: center; padding: 15px; background-color: var(--brand-color); color: white; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-bottom: 4px solid var(--accent-color); }
+    
+    .main-header { 
+        text-align: center; 
+        padding: 15px; 
+        background-color: var(--brand-color); 
+        color: white; 
+        border-radius: 15px; 
+        margin-bottom: 20px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+        border-bottom: 4px solid var(--accent-color); /* Gold Underline */
+    }
     h1 { font-size: 24px !important; margin: 0 !important; }
     p { margin: 0 !important; }
-    .stat-item { text-align: center; font-weight: 800; color: #495057; font-size: 26px; margin-top: 5px; }
-    div.stButton > button { width: 100%; height: 50px; border-radius: 10px; border: 1px solid #4a4a4a; background-color: #262730 !important; -webkit-appearance: none !important; transition: all 0.1s; }
+    
+    .stat-item { 
+        text-align: center; 
+        font-weight: 800; 
+        color: #495057; 
+        font-size: 26px; 
+        margin-top: 5px;
+    }
+    
+    div.stButton > button {
+        width: 100%; height: 50px; border-radius: 10px; border: 1px solid #4a4a4a;
+        background-color: #262730 !important; -webkit-appearance: none !important; transition: all 0.1s;
+    }
     div.stButton > button * { color: #ffffff !important; font-size: 22px !important; font-weight: 700 !important; }
     div.stButton > button:active { background-color: #000000 !important; transform: scale(0.98); }
-    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input { background-color: #f1f3f4 !important; color: #202124 !important; border: 1px solid #dadce0 !important; }
-    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Current Line"]) input { background-color: #ffffff !important; border: 2px solid var(--accent-color) !important; }
+
+    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input {
+        background-color: #f1f3f4 !important; color: #202124 !important; border: 1px solid #dadce0 !important;
+    }
+    
+    /* GOLD BORDER FOR ACTIVE INPUT */
+    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Current Line"]) input {
+        background-color: #ffffff !important; border: 2px solid var(--accent-color) !important; 
+    }
+
     .success-box { padding: 15px; background: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; }
     .warning-box { padding: 15px; background: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; }
     .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; }
@@ -46,7 +80,8 @@ if 'start_time' not in st.session_state: st.session_state.start_time = None
 if 'hint_count' not in st.session_state: st.session_state.hint_count = 0
 if 'problem_solved' not in st.session_state: st.session_state.problem_solved = False
 if 'high_scores' not in st.session_state: st.session_state.high_scores = []
-if 'last_processed_buffer' not in st.session_state: st.session_state.last_processed_buffer = None # FIX FOR INFINITE LOOP
+if 'last_processed_buffer' not in st.session_state: st.session_state.last_processed_buffer = None
+if 'debug_log' not in st.session_state: st.session_state.debug_log = {}
 
 # --- HELPERS ---
 def clear_all():
@@ -57,7 +92,8 @@ def clear_all():
     st.session_state.start_time = None
     st.session_state.hint_count = 0
     st.session_state.problem_solved = False
-    st.session_state.last_processed_buffer = None # Reset camera memory
+    st.session_state.last_processed_buffer = None
+    st.session_state.debug_log = {}
 
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
@@ -127,7 +163,26 @@ def get_solution_set(text_str):
         return sol
     except: return None
 
-# --- OCR ENGINE ---
+# --- NEW: STRICT FINAL CHECKER ---
+def check_is_final(text_str):
+    try:
+        clean = clean_input(text_str)
+        if "," in clean: return True # "x=1, x=2" is final
+        expr = parse_for_logic(clean)
+        
+        # Check if it is a simple number "5"
+        if expr.is_number: return True
+        
+        # Check if it is "x = number"
+        if isinstance(expr, Eq):
+            # LHS is Symbol AND RHS is Number (x = 2)
+            if expr.lhs.is_Symbol and expr.rhs.is_number: return True
+            # RHS is Symbol AND LHS is Number (2 = x)
+            if expr.rhs.is_Symbol and expr.lhs.is_number: return True
+            
+        return False
+    except: return False
+
 def process_image_with_mathpix(image_file, app_id, app_key):
     try:
         image_bytes = image_file.getvalue()
@@ -149,16 +204,20 @@ def validate_step(line_a, line_b):
     try:
         set_A = get_solution_set(line_a)
         set_B = get_solution_set(line_b)
+        st.session_state.debug_log = {"Set A": str(set_A), "Set B": str(set_B)}
         if st.session_state.original_solution_set is None: st.session_state.original_solution_set = set_A
-        clean_b = clean_input(line_b)
-        is_final = False
-        if not any(c in clean_b for c in "+*^") and not clean_b.startswith("matrix"): is_final = True
+        
+        # USE NEW STRICT CHECKER
+        is_final = check_is_final(line_b)
+        
         if set_A == set_B: return True, ("Final" if is_final else "Valid"), ""
         if set_A and set_B and set_A.issubset(set_B):
             if is_final: return True, "Warning", "Wait! You found two potential solutions. Check BOTH in the **original** equation."
             return True, "Valid", ""
         return False, "Invalid", "Values do not match."
-    except Exception as e: return False, "Error", str(e)
+    except Exception as e: 
+        st.session_state.debug_log["Error"] = str(e)
+        return False, "Error", str(e)
 
 # --- UI START ---
 st.markdown('<div class="main-header"><h1>🦉 THE LOGIC LAB</h1><p>AI Math Step-Checker</p></div>', unsafe_allow_html=True)
@@ -172,30 +231,24 @@ with st.sidebar:
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode")
     st.markdown("---")
     
-    # STABLE CAMERA LOGIC
     use_camera = st.toggle("📷 Camera Mode")
     if use_camera:
         st.info("Snap a photo of a math problem.")
         img_file = st.camera_input("Scan Math")
-        
         if img_file:
-            # CHECK: Did we already process this exact image?
             current_buffer = img_file.getvalue()
             if st.session_state.last_processed_buffer != current_buffer:
-                # NEW IMAGE DETECTED - PROCESS IT ONCE
                 if "mathpix_app_id" in st.secrets:
                     with st.spinner("Analyzing with Mathpix..."):
                         scanned_math = process_image_with_mathpix(img_file, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                         if scanned_math:
-                            # Clean and Store
                             clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
                             st.session_state.line_prev = clean_math
-                            st.session_state.last_processed_buffer = current_buffer # LOCK IT
+                            st.session_state.last_processed_buffer = current_buffer
                             st.success(f"Math Detected: {clean_math}")
-                            st.rerun() # Refresh once to show result
+                            st.rerun()
                         else: st.error("Could not read math.")
                 else:
-                    # DEMO MODE
                     st.warning("⚠️ No API Keys. Simulating scan...")
                     time.sleep(1)
                     st.session_state.line_prev = "4x + 2x = 12"
