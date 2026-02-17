@@ -18,51 +18,17 @@ st.set_page_config(page_title="The Logic Lab", page_icon="🦉", layout="centere
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    /* TEAL & GOLD THEME */
-    :root { 
-        --brand-color: #008080;  /* Teal */
-        --accent-color: #DAA520; /* Gold */
-    }
-    
+    :root { --brand-color: #008080; --accent-color: #DAA520; }
     html, body, [class*="css"] { font-family: 'Segoe UI', Roboto, sans-serif; }
-    
-    .main-header { 
-        text-align: center; 
-        padding: 15px; 
-        background-color: var(--brand-color); 
-        color: white; 
-        border-radius: 15px; 
-        margin-bottom: 20px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
-        border-bottom: 4px solid var(--accent-color); /* Gold Underline */
-    }
+    .main-header { text-align: center; padding: 15px; background-color: var(--brand-color); color: white; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-bottom: 4px solid var(--accent-color); }
     h1 { font-size: 24px !important; margin: 0 !important; }
     p { margin: 0 !important; }
-    
-    .stat-item { 
-        text-align: center; 
-        font-weight: 800; 
-        color: #495057; 
-        font-size: 26px; 
-        margin-top: 5px;
-    }
-    
-    div.stButton > button {
-        width: 100%; height: 50px; border-radius: 10px; border: 1px solid #4a4a4a;
-        background-color: #262730 !important; -webkit-appearance: none !important; transition: all 0.1s;
-    }
+    .stat-item { text-align: center; font-weight: 800; color: #495057; font-size: 26px; margin-top: 5px; }
+    div.stButton > button { width: 100%; height: 50px; border-radius: 10px; border: 1px solid #4a4a4a; background-color: #262730 !important; -webkit-appearance: none !important; transition: all 0.1s; }
     div.stButton > button * { color: #ffffff !important; font-size: 22px !important; font-weight: 700 !important; }
     div.stButton > button:active { background-color: #000000 !important; transform: scale(0.98); }
-
-    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input {
-        background-color: #f1f3f4 !important; color: #202124 !important; border: 1px solid #dadce0 !important;
-    }
-    
-    /* GOLD BORDER FOR ACTIVE INPUT */
-    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Current Line"]) input {
-        background-color: #ffffff !important; border: 2px solid var(--accent-color) !important; 
-    }
-
+    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input { background-color: #f1f3f4 !important; color: #202124 !important; border: 1px solid #dadce0 !important; }
+    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Current Line"]) input { background-color: #ffffff !important; border: 2px solid var(--accent-color) !important; }
     .success-box { padding: 15px; background: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; }
     .warning-box { padding: 15px; background: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; }
     .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; }
@@ -105,7 +71,9 @@ def add_to_input(text_to_add):
 
 def clean_input(text):
     text = text.lower().replace("＋", "+").replace("－", "-")
-    text = text.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "").replace("\\", "").replace("`", "")
+    # THE JANITOR: Clean up Mathpix wrappers
+    text = text.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
+    text = text.replace("\\", "").replace("`", "")
     text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
     text = text.replace(" and ", ",").replace(" or ", ",").replace("^", "**").replace("√", "sqrt")
     return text
@@ -160,7 +128,7 @@ def get_solution_set(text_str):
         return sol
     except: return None
 
-# --- OCR ENGINE (RESTORED) ---
+# --- OCR ENGINE ---
 def process_image_with_mathpix(image_file, app_id, app_key):
     try:
         image_bytes = image_file.getvalue()
@@ -172,7 +140,10 @@ def process_image_with_mathpix(image_file, app_id, app_key):
         response = requests.post(url, json=data, headers=headers)
         response.raise_for_status()
         result = response.json()
-        if 'asciimath' in result: return result['asciimath']
+        
+        # Priority: LaTeX Simplified -> AsciiMath -> Text
+        if 'latex_simplified' in result: return result['latex_simplified']
+        elif 'asciimath' in result: return result['asciimath']
         elif 'text' in result: return result['text']
         else: return None
     except Exception as e: return None
@@ -203,27 +174,34 @@ with st.sidebar:
     regents_mode = st.toggle("🏆 Challenge Mode", value=False)
     if regents_mode: st.caption("Timer & Hints Enabled")
     else: st.caption("Study Mode (Relaxed)")
-    
     st.markdown("---")
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode")
-    
     st.markdown("---")
-    # CAMERA LOGIC RESTORED
+    
+    # CAMERA LOGIC WITH CLEANER
     use_camera = st.toggle("📷 Camera Mode")
     if use_camera:
         st.info("Snap a photo of a math problem.")
-        if "mathpix_app_id" in st.secrets:
-            img_file = st.camera_input("Scan Math")
-            if img_file:
+        img_file = st.camera_input("Scan Math")
+        
+        if img_file:
+            # Check if API keys exist
+            if "mathpix_app_id" in st.secrets:
                 with st.spinner("Analyzing with Mathpix..."):
                     scanned_math = process_image_with_mathpix(img_file, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                     if scanned_math:
-                        st.session_state.line_prev = scanned_math
-                        st.success("Math Detected!")
+                        # CLEAN THE RESULT
+                        clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
+                        st.session_state.line_prev = clean_math
+                        st.success(f"Math Detected: {clean_math}")
                         st.rerun()
                     else: st.error("Could not read math.")
-        else:
-            st.warning("⚠️ API Keys Missing in Secrets")
+            else:
+                # DEMO MODE IF NO KEYS
+                st.warning("⚠️ No API Keys. Simulating scan...")
+                time.sleep(1)
+                st.session_state.line_prev = "4x + 2x = 12"
+                st.rerun()
 
     st.markdown("---")
     if st.button("🗑️ Clear Leaderboard"): st.session_state.high_scores = []; st.rerun()
