@@ -1,6 +1,9 @@
 streamlit
 sympy
-matplotlib
+pandas
 plotly
 requests
-Pillow
+streamlit-drawable-canvas
+pillow
+numpy
+matplotlib
