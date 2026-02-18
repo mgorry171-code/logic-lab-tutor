@@ -35,7 +35,6 @@ st.markdown("""
     .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; }
     .leaderboard { margin-top: 30px; padding: 15px; background: #fff; border-radius: 10px; border: 1px solid #e0e0e0; }
     .footer-note { font-size: 13px; color: #70757a; text-align: center; margin-top: 30px; padding: 20px; border-top: 1px solid #e0e0e0; }
-    .practice-bank { background: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #dee2e6; margin-bottom: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -52,10 +51,9 @@ if 'last_processed_buffer' not in st.session_state: st.session_state.last_proces
 if 'debug_log' not in st.session_state: st.session_state.debug_log = {}
 if 'camera_key' not in st.session_state: st.session_state.camera_key = 0
 if 'canvas_key' not in st.session_state: st.session_state.canvas_key = 0
-if 'loaded_mcq_text' not in st.session_state: st.session_state.loaded_mcq_text = "" # NEW: Stores MCQ wording
+if 'loaded_mcq_text' not in st.session_state: st.session_state.loaded_mcq_text = "" 
 
-# --- PRE-LOADED CONTENT (EDIT THIS TO ADD YOUR OWN QUESTIONS) ---
-# Format is "Category": {"Problem Name": {"equation": "math here", "text": "optional mcq text here"}}
+# --- PRE-LOADED CONTENT ---
 practice_bank = {
     "Linear Equations (A-REI.3)": {
         "Variables on Both Sides": {"equation": "4x + 2x = 12", "text": ""},
@@ -200,11 +198,20 @@ def validate_step(line_a, line_b):
         st.session_state.debug_log = {"Set A": str(set_A), "Set B": str(set_B)}
         if st.session_state.original_solution_set is None: st.session_state.original_solution_set = set_A
         is_final = check_is_final(line_b)
+        
+        # Exact match
         if set_A == set_B: return True, ("Final" if is_final else "Valid"), ""
-        if set_A and set_B and set_A.issubset(set_B):
-            if is_final: return True, "Warning", "Wait! You found two potential solutions. Check BOTH in the **original** equation."
-            return True, "Valid", ""
-        return False, "Invalid", "Values do not match."
+        
+        if set_A and set_B:
+            # Missing a solution (e.g. put x=4 for x^2=16)
+            if set_B.issubset(set_A) and set_B != set_A:
+                return True, "Warning", "You are missing a solution! (Hint: When taking a square root, don't forget ±)"
+            # Extra wrong solution
+            if set_A.issubset(set_B) and set_A != set_B:
+                return True, "Warning", "Wait! You found an extra potential solution. Check BOTH in the **original** equation."
+                
+        # Updated Error Message for common sign/distribution mistakes
+        return False, "Invalid", "Values do not match. Most common culprits: a dropped negative sign or a distribution error!"
     except Exception as e: 
         st.session_state.debug_log["Error"] = str(e)
         return False, "Error", str(e)
@@ -227,23 +234,20 @@ with st.sidebar:
     st.markdown("---")
     if st.button("🗑️ Clear Leaderboard"): st.session_state.high_scores = []; st.rerun()
 
-# --- PRACTICE BANK UI ---
-st.markdown("<div class='practice-bank'><b>📚 Load a Practice Problem</b>", unsafe_allow_html=True)
-col_pb1, col_pb2, col_pb3 = st.columns([2, 2, 1])
-with col_pb1:
-    selected_topic = st.selectbox("Standard / Topic", list(practice_bank.keys()), label_visibility="collapsed")
-with col_pb2:
-    selected_problem_name = st.selectbox("Problem", list(practice_bank[selected_topic].keys()), label_visibility="collapsed")
-with col_pb3:
-    if st.button("Load", use_container_width=True):
-        clear_all() 
-        # LOAD BOTH EQUATION AND MCQ TEXT
-        st.session_state.line_prev = practice_bank[selected_topic][selected_problem_name]["equation"]
-        st.session_state.loaded_mcq_text = practice_bank[selected_topic][selected_problem_name]["text"]
-        st.rerun()
-st.markdown("</div>", unsafe_allow_html=True)
+# --- COLLAPSED PRACTICE BANK ---
+with st.expander("📚 Load a Practice Problem", expanded=False):
+    col_pb1, col_pb2, col_pb3 = st.columns([2, 2, 1])
+    with col_pb1:
+        selected_topic = st.selectbox("Standard / Topic", list(practice_bank.keys()), label_visibility="collapsed")
+    with col_pb2:
+        selected_problem_name = st.selectbox("Problem", list(practice_bank[selected_topic].keys()), label_visibility="collapsed")
+    with col_pb3:
+        if st.button("Load", use_container_width=True):
+            clear_all() 
+            st.session_state.line_prev = practice_bank[selected_topic][selected_problem_name]["equation"]
+            st.session_state.loaded_mcq_text = practice_bank[selected_topic][selected_problem_name]["text"]
+            st.rerun()
 
-# DISPLAY MCQ TEXT IF IT EXISTS
 if st.session_state.loaded_mcq_text:
     st.info(st.session_state.loaded_mcq_text)
 
@@ -314,7 +318,8 @@ st.markdown("---")
 st.text_input("Current Line", key="line_curr", label_visibility="collapsed", placeholder="Your next step...", help="Current Line")
 if st.session_state.line_curr: st.latex(safe_parse_latex(st.session_state.line_curr))
 
-with st.expander("⌨️ MATH KEYPAD", expanded=True):
+# --- COLLAPSED KEYPAD ---
+with st.expander("⌨️ MATH KEYPAD", expanded=False):
     st.radio("Target:", ["Previous Line", "Current Line"], horizontal=True, key="keypad_target", label_visibility="collapsed")
     t1, t2, t3 = st.tabs(["Algebra", "Calculus", "Advanced"])
     with t1:
@@ -350,7 +355,7 @@ if not st.session_state.problem_solved:
                 else: st.markdown("<div class='success-box'>✅ Correct! Keep going.</div>", unsafe_allow_html=True)
             else:
                 st.session_state.hint_count += 1
-                st.markdown(f"<div class='error-box'>❌ Logic Break. Hint: {hint}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='error-box'>❌ {hint}</div>", unsafe_allow_html=True)
     with c_next:
         if st.session_state.step_verified: st.button("NEXT STEP ⬇️", on_click=next_step)
 else: st.success("✨ Problem Complete! Click NEW to start again.")
