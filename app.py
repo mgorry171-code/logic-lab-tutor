@@ -1,3 +1,17 @@
+This is the missing puzzle piece! 🧩
+
+We installed the "Whiteboard Tool" (in requirements.txt), but we haven't told the "App Code" (app.py) to actually show it yet.
+
+It's like buying a new whiteboard for your classroom but leaving it in the box. We need to hang it on the wall.
+
+Action: Update app.py to v16.0 (The Whiteboard Edition)
+Edit app.py in GitHub.
+
+Delete All and paste this code.
+
+Commit and Refresh.
+
+Python
 import streamlit as st
 import sympy
 from sympy import symbols, solve, Eq, latex, simplify, I, pi, E, diff, integrate, limit, oo, Matrix, factorial, Function, Derivative, Integral, ImmutableDenseMatrix, FiniteSet
@@ -11,6 +25,7 @@ import plotly.graph_objects as go
 import requests
 import base64
 import statistics
+from streamlit_drawable_canvas import st_canvas  # NEW LIBRARY FOR DRAWING
 
 # --- CONFIG ---
 st.set_page_config(page_title="The Logic Lab", page_icon="🦉", layout="centered")
@@ -177,10 +192,24 @@ def check_is_final(text_str):
         return False
     except: return False
 
-def process_image_with_mathpix(image_file, app_id, app_key):
+def process_image_with_mathpix(image_data, app_id, app_key):
     try:
-        image_bytes = image_file.getvalue()
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        # HANDLE BOTH FILE AND CANVAS DATA
+        if isinstance(image_data, bytes): # From Camera
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+        else: # From Canvas (Numpy Array)
+            # Convert Numpy to Image to Bytes
+            from PIL import Image
+            import io
+            img = Image.fromarray(image_data.astype('uint8'), 'RGBA')
+            # Create white background for transparency
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3]) # 3 is alpha channel
+            
+            buf = io.BytesIO()
+            background.save(buf, format='JPEG')
+            image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+
         data_uri = f"data:image/jpeg;base64,{image_base64}"
         url = "https://api.mathpix.com/v3/text"
         headers = {"app_id": app_id, "app_key": app_key, "Content-type": "application/json"}
@@ -222,45 +251,70 @@ with st.sidebar:
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode")
     st.markdown("---")
     
-    use_camera = st.toggle("📷 Camera Mode")
-    if use_camera:
-        st.info("Snap a photo of a math problem.")
-        img_file = st.camera_input("Scan Math", key=f"camera_{st.session_state.camera_key}")
-        if img_file:
-            current_buffer = img_file.getvalue()
-            if st.session_state.last_processed_buffer != current_buffer:
-                if "mathpix_app_id" in st.secrets:
-                    with st.spinner("Analyzing with Mathpix..."):
-                        scanned_math = process_image_with_mathpix(img_file, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
-                        if scanned_math:
-                            clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
-                            st.session_state.line_prev = clean_math
-                            st.session_state.last_processed_buffer = current_buffer
-                            st.success(f"Math Detected: {clean_math}")
-                            st.rerun()
-                        else: st.error("Could not read math.")
-                else:
-                    st.warning("⚠️ No API Keys. Simulating scan...")
-                    time.sleep(1)
-                    st.session_state.line_prev = "4x + 2x = 12"
-                    st.session_state.last_processed_buffer = current_buffer
-                    st.rerun()
-
+    # INPUT MODE SELECTION
+    input_mode = st.radio("Input Mode:", ["⌨️ Typing", "📷 Camera", "✏️ Whiteboard"])
+    
     st.markdown("---")
-    # NEW: INSTALL INSTRUCTIONS
     with st.expander("📱 Install App"):
-        st.markdown("""
-        **iOS (iPhone/iPad):**
-        1. Tap the Share button (square with arrow).
-        2. Scroll down and tap **"Add to Home Screen"**.
-        
-        **Android / Chrome:**
-        1. Tap the Menu (three dots).
-        2. Tap **"Install App"** or **"Add to Home Screen"**.
-        """)
-        
+        st.markdown("**iOS:** Share → Add to Home Screen\n\n**Android:** Menu → Install App")
     st.markdown("---")
     if st.button("🗑️ Clear Leaderboard"): st.session_state.high_scores = []; st.rerun()
+
+# --- WHITEBOARD LOGIC ---
+if input_mode == "✏️ Whiteboard":
+    st.info("Draw the math problem below:")
+    # Create Canvas
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.3)",  # Fixed fill color with some opacity
+        stroke_width=3,
+        stroke_color="#000000",
+        background_color="#ffffff",
+        height=200,
+        drawing_mode="freedraw",
+        key="canvas",
+    )
+    
+    if st.button("Process Writing"):
+        if canvas_result.image_data is not None:
+             if "mathpix_app_id" in st.secrets:
+                with st.spinner("Reading handwriting..."):
+                    # Process Numpy Array from Canvas
+                    scanned_math = process_image_with_mathpix(canvas_result.image_data, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
+                    if scanned_math:
+                        clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
+                        st.session_state.line_prev = clean_math
+                        st.success(f"Read: {clean_math}")
+                        st.rerun()
+                    else: st.error("Could not read writing.")
+             else:
+                st.warning("⚠️ No API Keys. Simulating read...")
+                time.sleep(1)
+                st.session_state.line_prev = "x^2 + 5x + 6 = 0"
+                st.rerun()
+
+# --- CAMERA LOGIC ---
+elif input_mode == "📷 Camera":
+    st.info("Snap a photo of a math problem.")
+    img_file = st.camera_input("Scan Math", key=f"camera_{st.session_state.camera_key}")
+    if img_file:
+        current_buffer = img_file.getvalue()
+        if st.session_state.last_processed_buffer != current_buffer:
+            if "mathpix_app_id" in st.secrets:
+                with st.spinner("Analyzing with Mathpix..."):
+                    scanned_math = process_image_with_mathpix(img_file.getvalue(), st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
+                    if scanned_math:
+                        clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
+                        st.session_state.line_prev = clean_math
+                        st.session_state.last_processed_buffer = current_buffer
+                        st.success(f"Math Detected: {clean_math}")
+                        st.rerun()
+                    else: st.error("Could not read math.")
+            else:
+                st.warning("⚠️ No API Keys. Simulating scan...")
+                time.sleep(1)
+                st.session_state.line_prev = "4x + 2x = 12"
+                st.session_state.last_processed_buffer = current_buffer
+                st.rerun()
 
 col_d1, col_d2, col_d3 = st.columns(3)
 if regents_mode:
