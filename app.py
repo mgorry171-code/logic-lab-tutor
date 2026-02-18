@@ -35,6 +35,7 @@ st.markdown("""
     .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; }
     .leaderboard { margin-top: 30px; padding: 15px; background: #fff; border-radius: 10px; border: 1px solid #e0e0e0; }
     .footer-note { font-size: 13px; color: #70757a; text-align: center; margin-top: 30px; padding: 20px; border-top: 1px solid #e0e0e0; }
+    .practice-bank { background: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #dee2e6; margin-bottom: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -55,7 +56,7 @@ if 'loaded_mcq_text' not in st.session_state: st.session_state.loaded_mcq_text =
 
 # --- PRE-LOADED CONTENT ---
 practice_bank = {
- "Equations with Fractions (A-REI.3)": {
+    "Equations with Fractions (A-REI.3)": {
         "Problem 1 (Proportions)": {
             "equation": "4/3 = (x + 10)/15", 
             "text": "**The value of x that satisfies the equation is:**\n\n**1)** -6 &nbsp;&nbsp;&nbsp;&nbsp; **2)** 5 &nbsp;&nbsp;&nbsp;&nbsp; **3)** 10 &nbsp;&nbsp;&nbsp;&nbsp; **4)** 30"
@@ -91,6 +92,10 @@ practice_bank = {
     },
     "Linear Equations (A-REI.3)": {
         "Variables on Both Sides": {"equation": "4x + 2x = 12", "text": ""},
+        "Regents Jan 2024 #3 (MCQ)": {
+            "equation": "3(x - 2) = 15", 
+            "text": "**What is the value of x in the equation?**\n\n**A)** 7 &nbsp;&nbsp;&nbsp;&nbsp; **B)** 5 &nbsp;&nbsp;&nbsp;&nbsp; **C)** 3 &nbsp;&nbsp;&nbsp;&nbsp; **D)** 17/3"
+        },
         "Fractional Coefficients": {"equation": "x/2 + 4 = 10", "text": ""}
     },
     "Quadratic Equations (A-REI.4)": {
@@ -132,15 +137,16 @@ def clean_input(text):
     text = text.replace(" and ", ",").replace(" or ", ",").replace("^", "**").replace("√", "sqrt")
     return text
 
+# FIX: Added evaluate=False to stop Sympy from auto-simplifying the display
 def safe_parse_latex(text_str):
     try:
         clean = clean_input(text_str)
         if "=" in clean:
             parts = clean.split("=")
-            lhs = parse_expr(parts[0], transformations=standard_transformations)
-            rhs = parse_expr(parts[1], transformations=standard_transformations)
-            return latex(Eq(lhs, rhs))
-        return latex(parse_expr(clean, transformations=standard_transformations))
+            lhs = parse_expr(parts[0], transformations=standard_transformations, evaluate=False)
+            rhs = parse_expr(parts[1], transformations=standard_transformations, evaluate=False)
+            return latex(Eq(lhs, rhs, evaluate=False))
+        return latex(parse_expr(clean, transformations=standard_transformations, evaluate=False))
     except: return text_str
 
 def parse_for_logic(text):
@@ -229,18 +235,14 @@ def validate_step(line_a, line_b):
         if st.session_state.original_solution_set is None: st.session_state.original_solution_set = set_A
         is_final = check_is_final(line_b)
         
-        # Exact match
         if set_A == set_B: return True, ("Final" if is_final else "Valid"), ""
         
         if set_A and set_B:
-            # Missing a solution (e.g. put x=4 for x^2=16)
             if set_B.issubset(set_A) and set_B != set_A:
                 return True, "Warning", "You are missing a solution! (Hint: When taking a square root, don't forget ±)"
-            # Extra wrong solution
             if set_A.issubset(set_B) and set_A != set_B:
                 return True, "Warning", "Wait! You found an extra potential solution. Check BOTH in the **original** equation."
                 
-        # Updated Error Message for common sign/distribution mistakes
         return False, "Invalid", "Values do not match. Most common culprits: a dropped negative sign or a distribution error!"
     except Exception as e: 
         st.session_state.debug_log["Error"] = str(e)
