@@ -55,12 +55,42 @@ if 'loaded_mcq_text' not in st.session_state: st.session_state.loaded_mcq_text =
 
 # --- PRE-LOADED CONTENT ---
 practice_bank = {
+ "Equations with Fractions (A-REI.3)": {
+        "Problem 1 (Proportions)": {
+            "equation": "4/3 = (x + 10)/15", 
+            "text": "**The value of x that satisfies the equation is:**\n\n**1)** -6 &nbsp;&nbsp;&nbsp;&nbsp; **2)** 5 &nbsp;&nbsp;&nbsp;&nbsp; **3)** 10 &nbsp;&nbsp;&nbsp;&nbsp; **4)** 30"
+        },
+        "Problem 2 (Multi-Step)": {
+            "equation": "4*(x - 5)/3 + 2 = 14", 
+            "text": "**The solution to the equation is:**\n\n**1)** 15 &nbsp;&nbsp;&nbsp;&nbsp; **2)** 14 &nbsp;&nbsp;&nbsp;&nbsp; **3)** 6 &nbsp;&nbsp;&nbsp;&nbsp; **4)** 4"
+        },
+        "Problem 3 (Decimals in Choices)": {
+            "equation": "5*(2x - 4)/3 + 9 = 14", 
+            "text": "**What is the value of x in the equation?**\n\n**1)** 1.9 &nbsp;&nbsp;&nbsp;&nbsp; **2)** 3.5 &nbsp;&nbsp;&nbsp;&nbsp; **3)** 5.3 &nbsp;&nbsp;&nbsp;&nbsp; **4)** 8.9"
+        },
+        "Problem 4 (Fraction Addition)": {
+            "equation": "(x - 2)/3 + 1/6 = 5/6", 
+            "text": "**What is the value of x in the equation?**\n\n**1)** 4 &nbsp;&nbsp;&nbsp;&nbsp; **2)** 6 &nbsp;&nbsp;&nbsp;&nbsp; **3)** 8 &nbsp;&nbsp;&nbsp;&nbsp; **4)** 11"
+        },
+        "Problem 5 (Different Denominators)": {
+            "equation": "(x - 3)/4 + 2/3 = 17/12", 
+            "text": "**Which value of x makes the equation true?**\n\n**1)** 8 &nbsp;&nbsp;&nbsp;&nbsp; **2)** 6 &nbsp;&nbsp;&nbsp;&nbsp; **3)** 0 &nbsp;&nbsp;&nbsp;&nbsp; **4)** 4"
+        },
+        "Problem 6 (Distributing a Fraction)": {
+            "equation": "7/3*(x + 9/28) = 20", 
+            "text": "**Which value of x satisfies the equation?**\n\n**1)** 8.25 &nbsp;&nbsp;&nbsp;&nbsp; **2)** 8.89 &nbsp;&nbsp;&nbsp;&nbsp; **3)** 19.25 &nbsp;&nbsp;&nbsp;&nbsp; **4)** 44.92"
+        },
+        "Problem 7 (Negative Solutions)": {
+            "equation": "5/6*(3/8 - x) = 16", 
+            "text": "**Which value of x satisfies the equation?**\n\n**1)** -19.575 &nbsp;&nbsp;&nbsp;&nbsp; **2)** -18.825 &nbsp;&nbsp;&nbsp;&nbsp; **3)** -16.3125 &nbsp;&nbsp;&nbsp;&nbsp; **4)** -15.6875"
+        },
+        "Problem 8 (Fractional Answers)": {
+            "equation": "2/3*(3 - 2x) = 3/4", 
+            "text": "**The solution to the equation is:**\n\n**1)** -11/8 &nbsp;&nbsp;&nbsp;&nbsp; **2)** 5/8 &nbsp;&nbsp;&nbsp;&nbsp; **3)** -33/16 &nbsp;&nbsp;&nbsp;&nbsp; **4)** 15/16"
+        }
+    },
     "Linear Equations (A-REI.3)": {
         "Variables on Both Sides": {"equation": "4x + 2x = 12", "text": ""},
-        "Regents Jan 2024 #3 (MCQ)": {
-            "equation": "3(x - 2) = 15", 
-            "text": "**What is the value of x in the equation?**\n\n**A)** 7 &nbsp;&nbsp;&nbsp;&nbsp; **B)** 5 &nbsp;&nbsp;&nbsp;&nbsp; **C)** 3 &nbsp;&nbsp;&nbsp;&nbsp; **D)** 17/3"
-        },
         "Fractional Coefficients": {"equation": "x/2 + 4 = 10", "text": ""}
     },
     "Quadratic Equations (A-REI.4)": {
