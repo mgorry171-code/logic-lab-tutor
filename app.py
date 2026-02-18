@@ -52,24 +52,22 @@ if 'last_processed_buffer' not in st.session_state: st.session_state.last_proces
 if 'debug_log' not in st.session_state: st.session_state.debug_log = {}
 if 'camera_key' not in st.session_state: st.session_state.camera_key = 0
 if 'canvas_key' not in st.session_state: st.session_state.canvas_key = 0
+if 'loaded_mcq_text' not in st.session_state: st.session_state.loaded_mcq_text = "" # NEW: Stores MCQ wording
 
-# --- PRE-LOADED CONTENT (REGENTS STANDARDS) ---
+# --- PRE-LOADED CONTENT (EDIT THIS TO ADD YOUR OWN QUESTIONS) ---
+# Format is "Category": {"Problem Name": {"equation": "math here", "text": "optional mcq text here"}}
 practice_bank = {
     "Linear Equations (A-REI.3)": {
-        "Variables on Both Sides": "4x + 2x = 12",
-        "Distributive Property": "3(x - 2) = 15",
-        "Fractional Coefficients": "x/2 + 4 = 10",
-        "Multi-Step Equation": "2(3x - 1) = 4x + 8"
+        "Variables on Both Sides": {"equation": "4x + 2x = 12", "text": ""},
+        "Regents Jan 2024 #3 (MCQ)": {
+            "equation": "3(x - 2) = 15", 
+            "text": "**What is the value of x in the equation?**\n\n**A)** 7 &nbsp;&nbsp;&nbsp;&nbsp; **B)** 5 &nbsp;&nbsp;&nbsp;&nbsp; **C)** 3 &nbsp;&nbsp;&nbsp;&nbsp; **D)** 17/3"
+        },
+        "Fractional Coefficients": {"equation": "x/2 + 4 = 10", "text": ""}
     },
     "Quadratic Equations (A-REI.4)": {
-        "Difference of Squares": "x^2 - 16 = 0",
-        "Factoring (a=1)": "x^2 + 5x + 6 = 0",
-        "Square Root Method": "(x - 3)^2 = 25",
-        "Quadratic Formula Prep": "2x^2 - 3x - 5 = 0"
-    },
-    "Radicals & Exponents (N-RN.2)": {
-        "Simple Radical": "sqrt(x + 2) = x",
-        "Isolating the Radical": "sqrt(2x) - 4 = 0"
+        "Difference of Squares": {"equation": "x^2 - 16 = 0", "text": ""},
+        "Factoring (a=1)": {"equation": "x^2 + 5x + 6 = 0", "text": ""}
     }
 }
 
@@ -86,6 +84,7 @@ def clear_all():
     st.session_state.debug_log = {}
     st.session_state.camera_key += 1
     st.session_state.canvas_key += 1
+    st.session_state.loaded_mcq_text = ""
 
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
@@ -228,7 +227,7 @@ with st.sidebar:
     st.markdown("---")
     if st.button("🗑️ Clear Leaderboard"): st.session_state.high_scores = []; st.rerun()
 
-# --- NEW: PRACTICE BANK UI ---
+# --- PRACTICE BANK UI ---
 st.markdown("<div class='practice-bank'><b>📚 Load a Practice Problem</b>", unsafe_allow_html=True)
 col_pb1, col_pb2, col_pb3 = st.columns([2, 2, 1])
 with col_pb1:
@@ -237,11 +236,16 @@ with col_pb2:
     selected_problem_name = st.selectbox("Problem", list(practice_bank[selected_topic].keys()), label_visibility="collapsed")
 with col_pb3:
     if st.button("Load", use_container_width=True):
-        clear_all() # Reset the timer/hints
-        st.session_state.line_prev = practice_bank[selected_topic][selected_problem_name]
+        clear_all() 
+        # LOAD BOTH EQUATION AND MCQ TEXT
+        st.session_state.line_prev = practice_bank[selected_topic][selected_problem_name]["equation"]
+        st.session_state.loaded_mcq_text = practice_bank[selected_topic][selected_problem_name]["text"]
         st.rerun()
 st.markdown("</div>", unsafe_allow_html=True)
 
+# DISPLAY MCQ TEXT IF IT EXISTS
+if st.session_state.loaded_mcq_text:
+    st.info(st.session_state.loaded_mcq_text)
 
 if input_mode == "✏️ Whiteboard":
     st.info("Draw the math problem below:")
