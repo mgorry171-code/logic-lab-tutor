@@ -19,56 +19,23 @@ st.set_page_config(page_title="The Logic Lab", page_icon="🦉", layout="centere
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    /* TEAL & GOLD THEME */
-    :root { 
-        --brand-color: #008080;  /* Teal */
-        --accent-color: #DAA520; /* Gold */
-    }
-    
+    :root { --brand-color: #008080; --accent-color: #DAA520; }
     html, body, [class*="css"] { font-family: 'Segoe UI', Roboto, sans-serif; }
-    
-    .main-header { 
-        text-align: center; 
-        padding: 15px; 
-        background-color: var(--brand-color); 
-        color: white; 
-        border-radius: 15px; 
-        margin-bottom: 20px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
-        border-bottom: 4px solid var(--accent-color); /* Gold Underline */
-    }
+    .main-header { text-align: center; padding: 15px; background-color: var(--brand-color); color: white; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-bottom: 4px solid var(--accent-color); }
     h1 { font-size: 24px !important; margin: 0 !important; }
     p { margin: 0 !important; }
-    
-    .stat-item { 
-        text-align: center; 
-        font-weight: 800; 
-        color: #495057; 
-        font-size: 26px; 
-        margin-top: 5px;
-    }
-    
-    div.stButton > button {
-        width: 100%; height: 50px; border-radius: 10px; border: 1px solid #4a4a4a;
-        background-color: #262730 !important; -webkit-appearance: none !important; transition: all 0.1s;
-    }
+    .stat-item { text-align: center; font-weight: 800; color: #495057; font-size: 26px; margin-top: 5px; }
+    div.stButton > button { width: 100%; height: 50px; border-radius: 10px; border: 1px solid #4a4a4a; background-color: #262730 !important; -webkit-appearance: none !important; transition: all 0.1s; }
     div.stButton > button * { color: #ffffff !important; font-size: 22px !important; font-weight: 700 !important; }
     div.stButton > button:active { background-color: #000000 !important; transform: scale(0.98); }
-
-    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input {
-        background-color: #f1f3f4 !important; color: #202124 !important; border: 1px solid #dadce0 !important;
-    }
-    
-    /* GOLD BORDER FOR ACTIVE INPUT */
-    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Current Line"]) input {
-        background-color: #ffffff !important; border: 2px solid var(--accent-color) !important; 
-    }
-
+    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Previous Line"]) input { background-color: #f1f3f4 !important; color: #202124 !important; border: 1px solid #dadce0 !important; }
+    [data-testid="stVerticalBlock"] [data-testid="stVerticalBlock"] div:has(> div > div > input[aria-label="Current Line"]) input { background-color: #ffffff !important; border: 2px solid var(--accent-color) !important; }
     .success-box { padding: 15px; background: #d1e7dd; color: #0f5132; border-radius: 10px; text-align: center; border: 1px solid #badbcc; }
     .warning-box { padding: 15px; background: #fff3cd; color: #664d03; border-radius: 10px; text-align: center; border: 1px solid #ffecb5; }
     .error-box { padding: 15px; background: #f8d7da; color: #842029; border-radius: 10px; text-align: center; border: 1px solid #f5c2c7; }
     .leaderboard { margin-top: 30px; padding: 15px; background: #fff; border-radius: 10px; border: 1px solid #e0e0e0; }
     .footer-note { font-size: 13px; color: #70757a; text-align: center; margin-top: 30px; padding: 20px; border-top: 1px solid #e0e0e0; }
+    .practice-bank { background: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #dee2e6; margin-bottom: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -84,7 +51,27 @@ if 'high_scores' not in st.session_state: st.session_state.high_scores = []
 if 'last_processed_buffer' not in st.session_state: st.session_state.last_processed_buffer = None
 if 'debug_log' not in st.session_state: st.session_state.debug_log = {}
 if 'camera_key' not in st.session_state: st.session_state.camera_key = 0
-if 'canvas_key' not in st.session_state: st.session_state.canvas_key = 0 # KEY FOR WHITEBOARD RESET
+if 'canvas_key' not in st.session_state: st.session_state.canvas_key = 0
+
+# --- PRE-LOADED CONTENT (REGENTS STANDARDS) ---
+practice_bank = {
+    "Linear Equations (A-REI.3)": {
+        "Variables on Both Sides": "4x + 2x = 12",
+        "Distributive Property": "3(x - 2) = 15",
+        "Fractional Coefficients": "x/2 + 4 = 10",
+        "Multi-Step Equation": "2(3x - 1) = 4x + 8"
+    },
+    "Quadratic Equations (A-REI.4)": {
+        "Difference of Squares": "x^2 - 16 = 0",
+        "Factoring (a=1)": "x^2 + 5x + 6 = 0",
+        "Square Root Method": "(x - 3)^2 = 25",
+        "Quadratic Formula Prep": "2x^2 - 3x - 5 = 0"
+    },
+    "Radicals & Exponents (N-RN.2)": {
+        "Simple Radical": "sqrt(x + 2) = x",
+        "Isolating the Radical": "sqrt(2x) - 4 = 0"
+    }
+}
 
 # --- HELPERS ---
 def clear_all():
@@ -98,7 +85,7 @@ def clear_all():
     st.session_state.last_processed_buffer = None
     st.session_state.debug_log = {}
     st.session_state.camera_key += 1
-    st.session_state.canvas_key += 1 # INCREMENT CANVAS KEY
+    st.session_state.canvas_key += 1
 
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
@@ -234,19 +221,30 @@ with st.sidebar:
     st.markdown("---")
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode")
     st.markdown("---")
-    
     input_mode = st.radio("Input Mode:", ["⌨️ Typing", "📷 Camera", "✏️ Whiteboard"])
-    
     st.markdown("---")
     with st.expander("📱 Install App"):
         st.markdown("**iOS:** Share → Add to Home Screen\n\n**Android:** Menu → Install App")
     st.markdown("---")
     if st.button("🗑️ Clear Leaderboard"): st.session_state.high_scores = []; st.rerun()
 
-# --- WHITEBOARD LOGIC ---
+# --- NEW: PRACTICE BANK UI ---
+st.markdown("<div class='practice-bank'><b>📚 Load a Practice Problem</b>", unsafe_allow_html=True)
+col_pb1, col_pb2, col_pb3 = st.columns([2, 2, 1])
+with col_pb1:
+    selected_topic = st.selectbox("Standard / Topic", list(practice_bank.keys()), label_visibility="collapsed")
+with col_pb2:
+    selected_problem_name = st.selectbox("Problem", list(practice_bank[selected_topic].keys()), label_visibility="collapsed")
+with col_pb3:
+    if st.button("Load", use_container_width=True):
+        clear_all() # Reset the timer/hints
+        st.session_state.line_prev = practice_bank[selected_topic][selected_problem_name]
+        st.rerun()
+st.markdown("</div>", unsafe_allow_html=True)
+
+
 if input_mode == "✏️ Whiteboard":
     st.info("Draw the math problem below:")
-    # KEY UPDATES ON RESET
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=3,
@@ -254,9 +252,8 @@ if input_mode == "✏️ Whiteboard":
         background_color="#ffffff",
         height=200,
         drawing_mode="freedraw",
-        key=f"canvas_{st.session_state.canvas_key}", # DYNAMIC KEY
+        key=f"canvas_{st.session_state.canvas_key}",
     )
-    
     if st.button("Process Writing"):
         if canvas_result.image_data is not None:
              if "mathpix_app_id" in st.secrets:
@@ -274,7 +271,6 @@ if input_mode == "✏️ Whiteboard":
                 st.session_state.line_prev = "x^2 + 5x + 6 = 0"
                 st.rerun()
 
-# --- CAMERA LOGIC ---
 elif input_mode == "📷 Camera":
     st.info("Snap a photo of a math problem.")
     img_file = st.camera_input("Scan Math", key=f"camera_{st.session_state.camera_key}")
