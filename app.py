@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 import requests
 import base64
 import statistics
-from streamlit_drawable_canvas import st_canvas  # NEW LIBRARY FOR DRAWING
+from streamlit_drawable_canvas import st_canvas
 
 # --- CONFIG ---
 st.set_page_config(page_title="The Logic Lab", page_icon="🦉", layout="centered")
@@ -84,6 +84,7 @@ if 'high_scores' not in st.session_state: st.session_state.high_scores = []
 if 'last_processed_buffer' not in st.session_state: st.session_state.last_processed_buffer = None
 if 'debug_log' not in st.session_state: st.session_state.debug_log = {}
 if 'camera_key' not in st.session_state: st.session_state.camera_key = 0
+if 'canvas_key' not in st.session_state: st.session_state.canvas_key = 0 # KEY FOR WHITEBOARD RESET
 
 # --- HELPERS ---
 def clear_all():
@@ -97,6 +98,7 @@ def clear_all():
     st.session_state.last_processed_buffer = None
     st.session_state.debug_log = {}
     st.session_state.camera_key += 1
+    st.session_state.canvas_key += 1 # INCREMENT CANVAS KEY
 
 def next_step():
     st.session_state.line_prev = st.session_state.line_curr
@@ -180,18 +182,14 @@ def check_is_final(text_str):
 
 def process_image_with_mathpix(image_data, app_id, app_key):
     try:
-        # HANDLE BOTH FILE AND CANVAS DATA
-        if isinstance(image_data, bytes): # From Camera
+        if isinstance(image_data, bytes):
             image_base64 = base64.b64encode(image_data).decode('utf-8')
-        else: # From Canvas (Numpy Array)
-            # Convert Numpy to Image to Bytes
+        else:
             from PIL import Image
             import io
             img = Image.fromarray(image_data.astype('uint8'), 'RGBA')
-            # Create white background for transparency
             background = Image.new("RGB", img.size, (255, 255, 255))
-            background.paste(img, mask=img.split()[3]) # 3 is alpha channel
-            
+            background.paste(img, mask=img.split()[3])
             buf = io.BytesIO()
             background.save(buf, format='JPEG')
             image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
@@ -237,7 +235,6 @@ with st.sidebar:
     parent_mode = st.toggle("👨‍👩‍👧 Parent Mode")
     st.markdown("---")
     
-    # INPUT MODE SELECTION
     input_mode = st.radio("Input Mode:", ["⌨️ Typing", "📷 Camera", "✏️ Whiteboard"])
     
     st.markdown("---")
@@ -249,22 +246,21 @@ with st.sidebar:
 # --- WHITEBOARD LOGIC ---
 if input_mode == "✏️ Whiteboard":
     st.info("Draw the math problem below:")
-    # Create Canvas
+    # KEY UPDATES ON RESET
     canvas_result = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.3)",  # Fixed fill color with some opacity
+        fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=3,
         stroke_color="#000000",
         background_color="#ffffff",
         height=200,
         drawing_mode="freedraw",
-        key="canvas",
+        key=f"canvas_{st.session_state.canvas_key}", # DYNAMIC KEY
     )
     
     if st.button("Process Writing"):
         if canvas_result.image_data is not None:
              if "mathpix_app_id" in st.secrets:
                 with st.spinner("Reading handwriting..."):
-                    # Process Numpy Array from Canvas
                     scanned_math = process_image_with_mathpix(canvas_result.image_data, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                     if scanned_math:
                         clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
