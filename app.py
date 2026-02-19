@@ -106,15 +106,20 @@ practice_bank = {
 
 # --- HELPERS ---
 
-# NEW: Strips complex LaTeX code away from Mathpix responses
+# --- NEW: BULLETPROOF TRANSLATOR ---
 def clean_mathpix_string(text):
     if not text: return ""
-    text = text.replace(r"\begin{aligned}", "").replace(r"\end{aligned}", "")
-    text = text.replace(r"\begin{array}", "").replace(r"\end{array}", "")
+    text = re.sub(r'\\begin\{[^}]+\}', '', text)
+    text = re.sub(r'\\end\{[^}]+\}', '', text)
     text = text.replace("&=", "=").replace("&", "")
     text = text.replace(r"\left", "").replace(r"\right", "")
     text = text.replace(r"\cdot", "*").replace(r"\times", "*")
-    text = re.sub(r'\\d?frac\{([^{}]+)\}\{([^{}]+)\}', r'(\1)/(\2)', text)
+    text = text.replace(r"\div", "/")
+    
+    # Aggressively match fractions even with strange spaces
+    text = re.sub(r'\\[a-zA-Z]*frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}', r'(\1)/(\2)', text)
+    text = re.sub(r'\\[a-zA-Z]*frac\s*([0-9a-zA-Z])\s*([0-9a-zA-Z])', r'(\1)/(\2)', text)
+    
     text = text.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
     return text.strip()
 
@@ -318,12 +323,11 @@ if input_mode == "✏️ Whiteboard":
                 with st.spinner("Reading handwriting..."):
                     scanned_math = process_image_with_mathpix(canvas_result.image_data, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                     if scanned_math:
-                        # APPLY THE NEW CLEANER HERE
                         clean_math = clean_mathpix_string(scanned_math)
                         
                         lines = [line.strip() for line in re.split(r'\\\\|\n', clean_math) if line.strip()]
                         if lines:
-                            st.session_state.step_verified = False # Reset UI check flag
+                            st.session_state.step_verified = False
                             if "Current" in media_target:
                                 extracted_math = lines[-1] 
                                 st.session_state.line_curr = extracted_math
@@ -352,12 +356,11 @@ elif input_mode == "📷 Camera":
                 with st.spinner("Analyzing with Mathpix..."):
                     scanned_math = process_image_with_mathpix(img_file.getvalue(), st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                     if scanned_math:
-                        # APPLY THE NEW CLEANER HERE
                         clean_math = clean_mathpix_string(scanned_math)
                         
                         lines = [line.strip() for line in re.split(r'\\\\|\n', clean_math) if line.strip()]
                         if lines:
-                            st.session_state.step_verified = False # Reset UI check flag
+                            st.session_state.step_verified = False
                             if "Current" in media_target:
                                 extracted_math = lines[-1]
                                 st.session_state.line_curr = extracted_math
@@ -431,7 +434,8 @@ if not st.session_state.problem_solved:
                 else: st.markdown("<div class='success-box'>✅ Correct! Keep going.</div>", unsafe_allow_html=True)
             else:
                 st.session_state.hint_count += 1
-                st.markdown(f"<div class='error-box'>❌ {hint}</div>", unsafe_allow_html=True)
+                # --- NEW: DEBUG VIEW IN ERROR BOX ---
+                st.markdown(f"<div class='error-box'>❌ {hint}<br><br><span style='font-size: 14px; opacity: 0.8;'><i>(Debug View - Engine compared: {st.session_state.line_prev} to {st.session_state.line_curr})</i></span></div>", unsafe_allow_html=True)
     with c_next:
         if st.session_state.step_verified: st.button("NEXT STEP ⬇️", on_click=next_step)
 else: st.success("✨ Problem Complete! Click NEW to start again.")
