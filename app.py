@@ -105,6 +105,19 @@ practice_bank = {
 }
 
 # --- HELPERS ---
+
+# NEW: Strips complex LaTeX code away from Mathpix responses
+def clean_mathpix_string(text):
+    if not text: return ""
+    text = text.replace(r"\begin{aligned}", "").replace(r"\end{aligned}", "")
+    text = text.replace(r"\begin{array}", "").replace(r"\end{array}", "")
+    text = text.replace("&=", "=").replace("&", "")
+    text = text.replace(r"\left", "").replace(r"\right", "")
+    text = text.replace(r"\cdot", "*").replace(r"\times", "*")
+    text = re.sub(r'\\d?frac\{([^{}]+)\}\{([^{}]+)\}', r'(\1)/(\2)', text)
+    text = text.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
+    return text.strip()
+
 def clear_all():
     st.session_state.line_prev = ""
     st.session_state.line_curr = ""
@@ -126,6 +139,7 @@ def next_step():
 
 def add_to_input(text_to_add):
     if st.session_state.start_time is None: st.session_state.start_time = time.time()
+    st.session_state.step_verified = False
     if st.session_state.keypad_target == "Previous Line": st.session_state.line_prev += text_to_add
     else: st.session_state.line_curr += text_to_add
 
@@ -221,7 +235,6 @@ def process_image_with_mathpix(image_data, app_id, app_key):
         response.raise_for_status()
         result = response.json()
         
-        # --- FIX: FORCE ASCIIMATH (PLAIN TEXT) FIRST ---
         if 'asciimath' in result: return result['asciimath']
         elif 'latex_simplified' in result: return result['latex_simplified']
         elif 'text' in result: return result['text']
@@ -305,10 +318,12 @@ if input_mode == "✏️ Whiteboard":
                 with st.spinner("Reading handwriting..."):
                     scanned_math = process_image_with_mathpix(canvas_result.image_data, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                     if scanned_math:
-                        clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
+                        # APPLY THE NEW CLEANER HERE
+                        clean_math = clean_mathpix_string(scanned_math)
                         
                         lines = [line.strip() for line in re.split(r'\\\\|\n', clean_math) if line.strip()]
                         if lines:
+                            st.session_state.step_verified = False # Reset UI check flag
                             if "Current" in media_target:
                                 extracted_math = lines[-1] 
                                 st.session_state.line_curr = extracted_math
@@ -322,7 +337,8 @@ if input_mode == "✏️ Whiteboard":
              else:
                 st.warning("⚠️ No API Keys. Simulating read...")
                 time.sleep(1)
-                if "Current" in media_target: st.session_state.line_curr = "x = 5/3"
+                st.session_state.step_verified = False
+                if "Current" in media_target: st.session_state.line_curr = "x = (5)/(3)"
                 else: st.session_state.line_prev = "2x + 4x = 10"
                 st.rerun()
 
@@ -336,10 +352,12 @@ elif input_mode == "📷 Camera":
                 with st.spinner("Analyzing with Mathpix..."):
                     scanned_math = process_image_with_mathpix(img_file.getvalue(), st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                     if scanned_math:
-                        clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
+                        # APPLY THE NEW CLEANER HERE
+                        clean_math = clean_mathpix_string(scanned_math)
                         
                         lines = [line.strip() for line in re.split(r'\\\\|\n', clean_math) if line.strip()]
                         if lines:
+                            st.session_state.step_verified = False # Reset UI check flag
                             if "Current" in media_target:
                                 extracted_math = lines[-1]
                                 st.session_state.line_curr = extracted_math
@@ -354,7 +372,8 @@ elif input_mode == "📷 Camera":
             else:
                 st.warning("⚠️ No API Keys. Simulating scan...")
                 time.sleep(1)
-                if "Current" in media_target: st.session_state.line_curr = "x = 5/3"
+                st.session_state.step_verified = False
+                if "Current" in media_target: st.session_state.line_curr = "x = (5)/(3)"
                 else: st.session_state.line_prev = "2x + 4x = 10"
                 st.session_state.last_processed_buffer = current_buffer
                 st.rerun()
