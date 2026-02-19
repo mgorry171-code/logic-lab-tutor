@@ -137,7 +137,6 @@ def clean_input(text):
     text = text.replace(" and ", ",").replace(" or ", ",").replace("^", "**").replace("√", "sqrt")
     return text
 
-# FIX: Added evaluate=False to stop Sympy from auto-simplifying the display
 def safe_parse_latex(text_str):
     try:
         clean = clean_input(text_str)
@@ -283,8 +282,12 @@ with st.expander("📚 Load a Practice Problem", expanded=False):
 if st.session_state.loaded_mcq_text:
     st.info(st.session_state.loaded_mcq_text)
 
+# --- NEW: ROUTING TARGET ---
+if input_mode in ["✏️ Whiteboard", "📷 Camera"]:
+    media_target = st.radio("Send math to:", ["Current Line (Next Step)", "Previous Line (Problem)"], horizontal=True)
+
 if input_mode == "✏️ Whiteboard":
-    st.info("Draw the math problem below:")
+    st.info("Draw the math below:")
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=3,
@@ -301,18 +304,21 @@ if input_mode == "✏️ Whiteboard":
                     scanned_math = process_image_with_mathpix(canvas_result.image_data, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                     if scanned_math:
                         clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
-                        st.session_state.line_prev = clean_math
+                        # ROUTE TO CORRECT BOX
+                        if "Current" in media_target: st.session_state.line_curr = clean_math
+                        else: st.session_state.line_prev = clean_math
                         st.success(f"Read: {clean_math}")
                         st.rerun()
                     else: st.error("Could not read writing.")
              else:
                 st.warning("⚠️ No API Keys. Simulating read...")
                 time.sleep(1)
-                st.session_state.line_prev = "x^2 + 5x + 6 = 0"
+                if "Current" in media_target: st.session_state.line_curr = "3x = 12"
+                else: st.session_state.line_prev = "x^2 + 5x + 6 = 0"
                 st.rerun()
 
 elif input_mode == "📷 Camera":
-    st.info("Snap a photo of a math problem.")
+    st.info("Snap a photo of the math.")
     img_file = st.camera_input("Scan Math", key=f"camera_{st.session_state.camera_key}")
     if img_file:
         current_buffer = img_file.getvalue()
@@ -322,7 +328,9 @@ elif input_mode == "📷 Camera":
                     scanned_math = process_image_with_mathpix(img_file.getvalue(), st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                     if scanned_math:
                         clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
-                        st.session_state.line_prev = clean_math
+                        # ROUTE TO CORRECT BOX
+                        if "Current" in media_target: st.session_state.line_curr = clean_math
+                        else: st.session_state.line_prev = clean_math
                         st.session_state.last_processed_buffer = current_buffer
                         st.success(f"Math Detected: {clean_math}")
                         st.rerun()
@@ -330,7 +338,8 @@ elif input_mode == "📷 Camera":
             else:
                 st.warning("⚠️ No API Keys. Simulating scan...")
                 time.sleep(1)
-                st.session_state.line_prev = "4x + 2x = 12"
+                if "Current" in media_target: st.session_state.line_curr = "3x = 12"
+                else: st.session_state.line_prev = "4x + 2x = 12"
                 st.session_state.last_processed_buffer = current_buffer
                 st.rerun()
 
