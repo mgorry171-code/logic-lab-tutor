@@ -282,9 +282,9 @@ with st.expander("📚 Load a Practice Problem", expanded=False):
 if st.session_state.loaded_mcq_text:
     st.info(st.session_state.loaded_mcq_text)
 
-# --- NEW: ROUTING TARGET ---
+# --- NEW: ROUTING TARGET (REVERSED DEFAULT) ---
 if input_mode in ["✏️ Whiteboard", "📷 Camera"]:
-    media_target = st.radio("Send math to:", ["Current Line (Next Step)", "Previous Line (Problem)"], horizontal=True)
+    media_target = st.radio("Send math to:", ["Previous Line (Problem)", "Current Line (Next Step)"], horizontal=True)
 
 if input_mode == "✏️ Whiteboard":
     st.info("Draw the math below:")
@@ -293,7 +293,7 @@ if input_mode == "✏️ Whiteboard":
         stroke_width=3,
         stroke_color="#000000",
         background_color="#ffffff",
-        height=200,
+        height=300, # Made slightly taller for multi-line writing
         drawing_mode="freedraw",
         key=f"canvas_{st.session_state.canvas_key}",
     )
@@ -304,17 +304,25 @@ if input_mode == "✏️ Whiteboard":
                     scanned_math = process_image_with_mathpix(canvas_result.image_data, st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                     if scanned_math:
                         clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
-                        # ROUTE TO CORRECT BOX
-                        if "Current" in media_target: st.session_state.line_curr = clean_math
-                        else: st.session_state.line_prev = clean_math
-                        st.success(f"Read: {clean_math}")
-                        st.rerun()
+                        
+                        # --- MULTI-LINE EXTRACTOR ---
+                        lines = [line.strip() for line in re.split(r'\\\\|\n', clean_math) if line.strip()]
+                        if lines:
+                            if "Current" in media_target:
+                                extracted_math = lines[-1] # Grab bottom line
+                                st.session_state.line_curr = extracted_math
+                            else:
+                                extracted_math = lines[0] # Grab top line
+                                st.session_state.line_prev = extracted_math
+                                
+                            st.success(f"Read: {extracted_math}")
+                            st.rerun()
                     else: st.error("Could not read writing.")
              else:
                 st.warning("⚠️ No API Keys. Simulating read...")
                 time.sleep(1)
-                if "Current" in media_target: st.session_state.line_curr = "3x = 12"
-                else: st.session_state.line_prev = "x^2 + 5x + 6 = 0"
+                if "Current" in media_target: st.session_state.line_curr = "6x = 10"
+                else: st.session_state.line_prev = "2x + 4x = 10"
                 st.rerun()
 
 elif input_mode == "📷 Camera":
@@ -328,18 +336,26 @@ elif input_mode == "📷 Camera":
                     scanned_math = process_image_with_mathpix(img_file.getvalue(), st.secrets["mathpix_app_id"], st.secrets["mathpix_app_key"])
                     if scanned_math:
                         clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
-                        # ROUTE TO CORRECT BOX
-                        if "Current" in media_target: st.session_state.line_curr = clean_math
-                        else: st.session_state.line_prev = clean_math
-                        st.session_state.last_processed_buffer = current_buffer
-                        st.success(f"Math Detected: {clean_math}")
-                        st.rerun()
+                        
+                        # --- MULTI-LINE EXTRACTOR ---
+                        lines = [line.strip() for line in re.split(r'\\\\|\n', clean_math) if line.strip()]
+                        if lines:
+                            if "Current" in media_target:
+                                extracted_math = lines[-1]
+                                st.session_state.line_curr = extracted_math
+                            else:
+                                extracted_math = lines[0]
+                                st.session_state.line_prev = extracted_math
+                                
+                            st.session_state.last_processed_buffer = current_buffer
+                            st.success(f"Math Detected: {extracted_math}")
+                            st.rerun()
                     else: st.error("Could not read math.")
             else:
                 st.warning("⚠️ No API Keys. Simulating scan...")
                 time.sleep(1)
-                if "Current" in media_target: st.session_state.line_curr = "3x = 12"
-                else: st.session_state.line_prev = "4x + 2x = 12"
+                if "Current" in media_target: st.session_state.line_curr = "6x = 10"
+                else: st.session_state.line_prev = "2x + 4x = 10"
                 st.session_state.last_processed_buffer = current_buffer
                 st.rerun()
 
