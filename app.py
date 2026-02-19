@@ -106,7 +106,6 @@ practice_bank = {
 
 # --- HELPERS ---
 
-# --- NEW: BULLETPROOF TRANSLATOR ---
 def clean_mathpix_string(text):
     if not text: return ""
     text = re.sub(r'\\begin\{[^}]+\}', '', text)
@@ -116,7 +115,6 @@ def clean_mathpix_string(text):
     text = text.replace(r"\cdot", "*").replace(r"\times", "*")
     text = text.replace(r"\div", "/")
     
-    # Aggressively match fractions even with strange spaces
     text = re.sub(r'\\[a-zA-Z]*frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}', r'(\1)/(\2)', text)
     text = re.sub(r'\\[a-zA-Z]*frac\s*([0-9a-zA-Z])\s*([0-9a-zA-Z])', r'(\1)/(\2)', text)
     
@@ -304,7 +302,7 @@ if st.session_state.loaded_mcq_text:
 
 # --- ROUTING TARGET ---
 if input_mode in ["✏️ Whiteboard", "📷 Camera"]:
-    media_target = st.radio("Send math to:", ["Previous Line (Problem)", "Current Line (Next Step)"], horizontal=True)
+    media_target = st.radio("Send math to (Single line only):", ["Previous Line (Problem)", "Current Line (Next Step)"], horizontal=True)
 
 if input_mode == "✏️ Whiteboard":
     st.info("Draw the math below:")
@@ -328,14 +326,19 @@ if input_mode == "✏️ Whiteboard":
                         lines = [line.strip() for line in re.split(r'\\\\|\n', clean_math) if line.strip()]
                         if lines:
                             st.session_state.step_verified = False
-                            if "Current" in media_target:
-                                extracted_math = lines[-1] 
-                                st.session_state.line_curr = extracted_math
+                            
+                            # --- NEW: SMART AUTO-SCANNER ---
+                            if len(lines) >= 2:
+                                st.session_state.line_prev = lines[-2]
+                                st.session_state.line_curr = lines[-1]
+                                st.success(f"Smart Scan: {lines[-2]} ➡️ {lines[-1]}")
                             else:
-                                extracted_math = lines[0] 
-                                st.session_state.line_prev = extracted_math
-                                
-                            st.success(f"Read: {extracted_math}")
+                                if "Current" in media_target:
+                                    st.session_state.line_curr = lines[0]
+                                else:
+                                    st.session_state.line_prev = lines[0]
+                                st.success(f"Read: {lines[0]}")
+                            
                             st.rerun()
                     else: st.error("Could not read writing.")
              else:
@@ -361,15 +364,20 @@ elif input_mode == "📷 Camera":
                         lines = [line.strip() for line in re.split(r'\\\\|\n', clean_math) if line.strip()]
                         if lines:
                             st.session_state.step_verified = False
-                            if "Current" in media_target:
-                                extracted_math = lines[-1]
-                                st.session_state.line_curr = extracted_math
+                            
+                            # --- NEW: SMART AUTO-SCANNER ---
+                            if len(lines) >= 2:
+                                st.session_state.line_prev = lines[-2]
+                                st.session_state.line_curr = lines[-1]
+                                st.success(f"Smart Scan: {lines[-2]} ➡️ {lines[-1]}")
                             else:
-                                extracted_math = lines[0]
-                                st.session_state.line_prev = extracted_math
+                                if "Current" in media_target:
+                                    st.session_state.line_curr = lines[0]
+                                else:
+                                    st.session_state.line_prev = lines[0]
+                                st.success(f"Math Detected: {lines[0]}")
                                 
                             st.session_state.last_processed_buffer = current_buffer
-                            st.success(f"Math Detected: {extracted_math}")
                             st.rerun()
                     else: st.error("Could not read math.")
             else:
@@ -434,7 +442,6 @@ if not st.session_state.problem_solved:
                 else: st.markdown("<div class='success-box'>✅ Correct! Keep going.</div>", unsafe_allow_html=True)
             else:
                 st.session_state.hint_count += 1
-                # --- NEW: DEBUG VIEW IN ERROR BOX ---
                 st.markdown(f"<div class='error-box'>❌ {hint}<br><br><span style='font-size: 14px; opacity: 0.8;'><i>(Debug View - Engine compared: {st.session_state.line_prev} to {st.session_state.line_curr})</i></span></div>", unsafe_allow_html=True)
     with c_next:
         if st.session_state.step_verified: st.button("NEXT STEP ⬇️", on_click=next_step)
