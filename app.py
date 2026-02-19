@@ -220,8 +220,10 @@ def process_image_with_mathpix(image_data, app_id, app_key):
         response = requests.post(url, json=data, headers=headers)
         response.raise_for_status()
         result = response.json()
-        if 'latex_simplified' in result: return result['latex_simplified']
-        elif 'asciimath' in result: return result['asciimath']
+        
+        # --- FIX: FORCE ASCIIMATH (PLAIN TEXT) FIRST ---
+        if 'asciimath' in result: return result['asciimath']
+        elif 'latex_simplified' in result: return result['latex_simplified']
         elif 'text' in result: return result['text']
         else: return None
     except Exception as e: return None
@@ -282,7 +284,7 @@ with st.expander("📚 Load a Practice Problem", expanded=False):
 if st.session_state.loaded_mcq_text:
     st.info(st.session_state.loaded_mcq_text)
 
-# --- NEW: ROUTING TARGET (REVERSED DEFAULT) ---
+# --- ROUTING TARGET ---
 if input_mode in ["✏️ Whiteboard", "📷 Camera"]:
     media_target = st.radio("Send math to:", ["Previous Line (Problem)", "Current Line (Next Step)"], horizontal=True)
 
@@ -293,7 +295,7 @@ if input_mode == "✏️ Whiteboard":
         stroke_width=3,
         stroke_color="#000000",
         background_color="#ffffff",
-        height=300, # Made slightly taller for multi-line writing
+        height=300, 
         drawing_mode="freedraw",
         key=f"canvas_{st.session_state.canvas_key}",
     )
@@ -305,14 +307,13 @@ if input_mode == "✏️ Whiteboard":
                     if scanned_math:
                         clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
                         
-                        # --- MULTI-LINE EXTRACTOR ---
                         lines = [line.strip() for line in re.split(r'\\\\|\n', clean_math) if line.strip()]
                         if lines:
                             if "Current" in media_target:
-                                extracted_math = lines[-1] # Grab bottom line
+                                extracted_math = lines[-1] 
                                 st.session_state.line_curr = extracted_math
                             else:
-                                extracted_math = lines[0] # Grab top line
+                                extracted_math = lines[0] 
                                 st.session_state.line_prev = extracted_math
                                 
                             st.success(f"Read: {extracted_math}")
@@ -321,7 +322,7 @@ if input_mode == "✏️ Whiteboard":
              else:
                 st.warning("⚠️ No API Keys. Simulating read...")
                 time.sleep(1)
-                if "Current" in media_target: st.session_state.line_curr = "6x = 10"
+                if "Current" in media_target: st.session_state.line_curr = "x = 5/3"
                 else: st.session_state.line_prev = "2x + 4x = 10"
                 st.rerun()
 
@@ -337,7 +338,6 @@ elif input_mode == "📷 Camera":
                     if scanned_math:
                         clean_math = scanned_math.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
                         
-                        # --- MULTI-LINE EXTRACTOR ---
                         lines = [line.strip() for line in re.split(r'\\\\|\n', clean_math) if line.strip()]
                         if lines:
                             if "Current" in media_target:
@@ -354,7 +354,7 @@ elif input_mode == "📷 Camera":
             else:
                 st.warning("⚠️ No API Keys. Simulating scan...")
                 time.sleep(1)
-                if "Current" in media_target: st.session_state.line_curr = "6x = 10"
+                if "Current" in media_target: st.session_state.line_curr = "x = 5/3"
                 else: st.session_state.line_prev = "2x + 4x = 10"
                 st.session_state.last_processed_buffer = current_buffer
                 st.rerun()
